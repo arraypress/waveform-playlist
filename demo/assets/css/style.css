@@ -1,0 +1,153 @@
+/* Demo Page Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a0a2a 100%);
+    min-height: 100vh;
+    color: #fff;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    padding: 3rem 0;
+    margin-bottom: 3rem;
+}
+
+.header h1 {
+    font-size: 3rem;
+    background: linear-gradient(135deg, #a855f7, #ec4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+}
+
+.tagline {
+    color: #888;
+    font-size: 1.125rem;
+}
+
+/* Demo Sections */
+.demo-section {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 3rem;
+    backdrop-filter: blur(10px);
+}
+
+.demo-title {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #a855f7;
+}
+
+.demo-description {
+    color: #999;
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
+}
+
+/* Style Grid */
+.style-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.style-demo h3 {
+    color: #a855f7;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Code Section */
+.code-section h3 {
+    color: #4ade80;
+    margin: 2rem 0 1rem;
+    font-size: 1.125rem;
+}
+
+.code-section pre {
+    background: #000;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-bottom: 2rem;
+}
+
+.code-section code {
+    color: #4ade80;
+    font-size: 0.875rem;
+    font-family: 'Monaco', 'Menlo', monospace;
+}
+
+/* Keyboard Shortcuts */
+.shortcuts {
+    background: rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.3);
+}
+
+.shortcut-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.shortcut-grid div {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.shortcut-grid kbd {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-family: monospace;
+    font-size: 0.875rem;
+    min-width: 2rem;
+    text-align: center;
+}
+
+/* Custom playlist styling */
+.waveform-playlist {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+
+    .header h1 {
+        font-size: 2rem;
+    }
+
+    .style-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .demo-section {
+        padding: 1.5rem;
+    }
+}

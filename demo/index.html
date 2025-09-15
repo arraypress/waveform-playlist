@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WaveformPlaylist - Playlist & Chapter Navigation for WaveformPlayer</title>
+
+    <!-- Tabler Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/iconfont/tabler-icons.min.css">
+
+    <!-- WaveformPlayer from CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/@arraypress/waveform-player@latest/dist/waveform-player.css">
+    <script src="https://unpkg.com/@arraypress/waveform-player@latest/dist/waveform-player.js"></script>
+
+    <!-- WaveformPlaylist (local build) -->
+    <link rel="stylesheet" href="../dist/waveform-playlist.css">
+    <script src="../dist/waveform-playlist.js"></script>
+
+    <!-- Demo styles -->
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<div class="container">
+    <header class="header">
+        <h1>🎵 WaveformPlaylist</h1>
+        <p class="tagline">Playlist and chapter navigation for WaveformPlayer</p>
+    </header>
+
+    <!-- Demo 1: Podcast with Chapters -->
+    <section class="demo-section">
+        <h2 class="demo-title">📻 Podcast Episode with Chapters</h2>
+        <p class="demo-description">
+            Single track with chapter navigation. Chapters automatically appear as markers on the waveform
+            and as a clickable list below.
+        </p>
+
+        <div data-waveform-playlist
+             data-waveform-style="mirror"
+             data-bar-width="1"
+             data-bar-spacing="1"
+             data-height="80"
+             data-waveform-color="rgba(168, 85, 247, 0.3)"
+             data-progress-color="rgba(168, 85, 247, 0.9)">
+            <div data-track
+                 data-url="assets/audio/pluck-pieces-of-you.mp3"
+                 data-title="Episode 42: Building Design Systems"
+                 data-subtitle="with Sarah Chen"
+                 data-artwork="assets/img/purple-cover.svg">
+                <div data-chapter data-time="0:00">Introduction & Welcome</div>
+                <div data-chapter data-time="0:02">Sarah's Background</div>
+                <div data-chapter data-time="0:04">Core Design Principles</div>
+                <div data-chapter data-time="0:06">Implementation Strategies</div>
+                <div data-chapter data-time="0:08">Q&A Session</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Demo 2: Music Playlist with Artwork -->
+    <section class="demo-section">
+        <h2 class="demo-title">🎵 Music Playlist with Artwork</h2>
+        <p class="demo-description">
+            Multiple tracks with album artwork and continuous playback. The active track shows a play/pause overlay.
+        </p>
+
+        <div data-waveform-playlist
+             data-waveform-style="bars"
+             data-height="60"
+             data-continuous="true"
+             data-show-play-state="true"
+             data-bar-width="3"
+             data-bar-spacing="1">
+            <div data-track
+                 data-url="assets/audio/pluck-wings.mp3"
+                 data-title="Wings"
+                 data-subtitle="Ambient Dreams"
+                 data-artwork="assets/img/purple-cover.svg"
+                 data-duration="0:10"></div>
+            <div data-track
+                 data-url="assets/audio/pluck-desire.mp3"
+                 data-title="Desire"
+                 data-subtitle="Electronic Vibes"
+                 data-artwork="assets/img/blue-cover.svg"
+                 data-duration="0:10"></div>
+            <div data-track
+                 data-url="assets/audio/pluck-lovely.mp3"
+                 data-title="Lovely"
+                 data-subtitle="Chill Beats"
+                 data-artwork="assets/img/green-cover.svg"
+                 data-duration="0:10"></div>
+            <div data-track
+                 data-url="assets/audio/pluck-luminous.mp3"
+                 data-title="Luminous"
+                 data-subtitle="Atmospheric"
+                 data-artwork="assets/img/orange-cover.svg"
+                 data-duration="0:10"></div>
+        </div>
+    </section>
+
+    <!-- Demo 3: Course Modules with Expandable Chapters -->
+    <section class="demo-section">
+        <h2 class="demo-title">🎓 Course with Chapter Sections</h2>
+        <p class="demo-description">
+            Multiple lessons, each with their own chapters. Chapters expand under the active track and don't show as
+            markers.
+        </p>
+
+        <div data-waveform-playlist
+             data-waveform-style="mirror"
+             data-height="70"
+             data-expand-chapters="true"
+             data-show-chapter-markers="false"
+             data-bar-width="2">
+            <div data-track
+                 data-url="assets/audio/pluck-got-me-thinking.mp3"
+                 data-title="Module 1: Introduction to React"
+                 data-subtitle="Getting Started"
+                 data-duration="0:10">
+                <div data-chapter data-time="0:00">Welcome & Setup</div>
+                <div data-chapter data-time="0:03">Project Structure</div>
+                <div data-chapter data-time="0:07">First Component</div>
+            </div>
+            <div data-track
+                 data-url="assets/audio/pluck-small-moments.mp3"
+                 data-title="Module 2: Components & Props"
+                 data-subtitle="Building Blocks"
+                 data-duration="0:10">
+                <div data-chapter data-time="0:00">Component Theory</div>
+                <div data-chapter data-time="0:05">Props & Data Flow</div>
+            </div>
+            <div data-track
+                 data-url="assets/audio/pluck-nocturne.mp3"
+                 data-title="Module 3: State Management"
+                 data-subtitle="Managing Data"
+                 data-duration="0:10">
+                <div data-chapter data-time="0:00">useState Hook</div>
+                <div data-chapter data-time="0:04">useReducer</div>
+                <div data-chapter data-time="0:08">Context API</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Demo 4: Minimal Button Layout -->
+    <section class="demo-section">
+        <h2 class="demo-title">✨ Minimal Track Switcher</h2>
+        <p class="demo-description">
+            Clean button layout for quick track switching. Perfect for sample packs or beat showcases.
+        </p>
+
+        <div data-waveform-playlist
+             data-layout="minimal"
+             data-waveform-style="dots"
+             data-bar-width="2"
+             data-bar-spacing="3"
+             data-height="60"
+             data-progress-color="rgba(74, 222, 128, 1)"
+             data-waveform-color="rgba(74, 222, 128, 0.3)">
+            <div data-track data-url="assets/audio/pluck-sine.mp3" data-title="Sine Wave"></div>
+            <div data-track data-url="assets/audio/pluck-icarus.mp3" data-title="Icarus"></div>
+            <div data-track data-url="assets/audio/drum-loop.mp3" data-title="Drum Loop"></div>
+            <div data-track data-url="assets/audio/pluck-wings.mp3" data-title="Wings"></div>
+        </div>
+    </section>
+
+    <!-- Demo 5: Different Visual Styles -->
+    <section class="demo-section">
+        <h2 class="demo-title">🎨 Visual Style Inheritance</h2>
+        <p class="demo-description">
+            All WaveformPlayer visual styles work seamlessly. Configure once on the container.
+        </p>
+
+        <div class="style-grid">
+            <!-- Line Style -->
+            <div class="style-demo">
+                <h3>Line Style</h3>
+                <div data-waveform-playlist
+                     data-waveform-style="line"
+                     data-height="50"
+                     data-waveform-color="rgba(236, 72, 153, 0.5)"
+                     data-progress-color="rgba(236, 72, 153, 1)">
+                    <div data-track data-url="assets/audio/pluck-desire.mp3" data-title="Track 1"></div>
+                    <div data-track data-url="assets/audio/pluck-lovely.mp3" data-title="Track 2"></div>
+                </div>
+            </div>
+
+            <!-- Blocks Style -->
+            <div class="style-demo">
+                <h3>Blocks Style</h3>
+                <div data-waveform-playlist
+                     data-waveform-style="blocks"
+                     data-height="50"
+                     data-bar-width="3"
+                     data-bar-spacing="1">
+                    <div data-track data-url="assets/audio/pluck-luminous.mp3" data-title="Track 1"></div>
+                    <div data-track data-url="assets/audio/pluck-sine.mp3" data-title="Track 2"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Demo 6: Advanced Features -->
+    <section class="demo-section">
+        <h2 class="demo-title">🚀 Advanced Features</h2>
+        <p class="demo-description">
+            Combining features: playback speed control, BPM detection, and Media Session API.
+        </p>
+
+        <div data-waveform-playlist
+             data-waveform-style="mirror"
+             data-height="80"
+             data-show-playback-speed="true"
+             data-show-bpm="true"
+             data-enable-media-session="true"
+             data-continuous="true">
+            <div data-track
+                 data-url="assets/audio/drum-loop.mp3"
+                 data-title="Drum Pattern"
+                 data-subtitle="4/4 House Beat"
+                 data-artwork="assets/img/orange-cover.svg"
+                 data-album="Beat Pack Vol. 1"></div>
+            <div data-track
+                 data-url="assets/audio/pluck-pieces-of-you.mp3"
+                 data-title="Melodic Loop"
+                 data-subtitle="Ambient Texture"
+                 data-artwork="assets/img/purple-cover.svg"
+                 data-album="Ambient Collection"></div>
+        </div>
+    </section>
+
+    <!-- Usage Examples -->
+    <section class="demo-section code-section">
+        <h2 class="demo-title">💻 Quick Start</h2>
+
+        <h3>Basic Playlist</h3>
+        <pre><code>&lt;div data-waveform-playlist&gt;
+  &lt;div data-track data-url="song1.mp3" data-title="Track 1"&gt;&lt;/div&gt;
+  &lt;div data-track data-url="song2.mp3" data-title="Track 2"&gt;&lt;/div&gt;
+&lt;/div&gt;</code></pre>
+
+        <h3>Podcast with Chapters</h3>
+        <pre><code>&lt;div data-waveform-playlist&gt;
+  &lt;div data-track data-url="episode.mp3" data-title="Episode 1"&gt;
+    &lt;div data-chapter data-time="0:00"&gt;Introduction&lt;/div&gt;
+    &lt;div data-chapter data-time="5:30"&gt;Main Topic&lt;/div&gt;
+    &lt;div data-chapter data-time="45:00"&gt;Conclusion&lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+
+        <h3>With All Options</h3>
+        <pre><code>&lt;div data-waveform-playlist
+     data-waveform-style="mirror"
+     data-continuous="true"
+     data-show-play-state="true"&gt;
+  &lt;div data-track
+       data-url="audio.mp3"
+       data-title="Title"
+       data-subtitle="Artist"
+       data-artwork="cover.jpg"&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+    </section>
+
+    <!-- Keyboard Shortcuts -->
+    <section class="demo-section shortcuts">
+        <h2 class="demo-title">⌨️ Keyboard Shortcuts</h2>
+        <div class="shortcut-grid">
+            <div><kbd>N</kbd> Next track</div>
+            <div><kbd>P</kbd> Previous track</div>
+            <div><kbd>1-9</kbd> Jump to track</div>
+            <div><kbd>Space</kbd> Play/Pause</div>
+            <div><kbd>←→</kbd> Seek</div>
+            <div><kbd>↑↓</kbd> Volume</div>
+        </div>
+    </section>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,53 @@
+{
+  "name": "@arraypress/waveform-playlist",
+  "version": "1.0.0",
+  "description": "Playlist and chapter navigation for WaveformPlayer",
+  "main": "dist/waveform-playlist.js",
+  "module": "dist/waveform-playlist.esm.js",
+  "unpkg": "dist/waveform-playlist.min.js",
+  "files": [
+    "dist/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run build:js && npm run build:css",
+    "build:js": "npm run build:iife && npm run build:esm && npm run build:min",
+    "build:css": "cp src/css/waveform-playlist.css dist/ && esbuild src/css/waveform-playlist.css --minify --outfile=dist/waveform-playlist.min.css",
+    "build:iife": "esbuild src/js/index.js --bundle --format=iife --global-name=WaveformPlaylist --outfile=dist/waveform-playlist.js",
+    "build:esm": "esbuild src/js/index.js --bundle --format=esm --outfile=dist/waveform-playlist.esm.js",
+    "build:min": "esbuild src/js/index.js --bundle --format=iife --global-name=WaveformPlaylist --minify --outfile=dist/waveform-playlist.min.js",
+    "dev": "esbuild src/js/index.js --bundle --format=iife --global-name=WaveformPlaylist --outfile=dist/waveform-playlist.js --watch",
+    "serve": "npx http-server -p 8000",
+    "size": "npm run build && echo 'JS:' && gzip -c dist/waveform-playlist.min.js | wc -c && echo 'CSS:' && gzip -c dist/waveform-playlist.min.css | wc -c",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "audio",
+    "playlist",
+    "chapters",
+    "waveform",
+    "player",
+    "podcast",
+    "course",
+    "navigation",
+    "tracklist"
+  ],
+  "author": "ArrayPress",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arraypress/waveform-playlist.git"
+  },
+  "bugs": {
+    "url": "https://github.com/arraypress/waveform-playlist/issues"
+  },
+  "homepage": "https://github.com/arraypress/waveform-playlist#readme",
+  "peerDependencies": {
+    "@arraypress/waveform-player": "^1.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
