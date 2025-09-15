@@ -4,8 +4,23 @@ demo/
 docs/
 .git/
 .gitignore
+.npmignore
 
 # Development files
 node_modules/
 *.log
 .DS_Store
+
+# Config files (optional - keep these out)
+.eslintrc*
+.prettierrc*
+tsconfig.json
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+
+# Build artifacts
+*.tgz
