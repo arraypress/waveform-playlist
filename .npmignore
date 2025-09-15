@@ -1,5 +1,6 @@
-# Source files (optional - if you want smaller npm package)
+# Source files
 examples/
+demo/
 docs/
 .git/
 .gitignore
