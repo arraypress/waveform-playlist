@@ -77,7 +77,8 @@ export class WaveformPlaylist {
         // Parse all WaveformPlayer attributes that should be inherited
         const playerAttributes = [
             'url', 'waveformStyle', 'barWidth', 'barSpacing', 'height', 'samples',
-            'waveformColor', 'progressColor', 'buttonColor', 'textColor', 'textSecondaryColor',
+            'colorPreset', 'waveformColor', 'progressColor', 'buttonColor',
+            'buttonHoverColor', 'textColor', 'textSecondaryColor',
             'backgroundColor', 'borderColor', 'showTime', 'showBPM', 'showPlaybackSpeed',
             'playbackRate', 'autoplay', 'singlePlay', 'playOnSeek', 'enableMediaSession'
         ];
