@@ -35,12 +35,12 @@ export class WaveformPlaylist {
             : container;
 
         if (!this.container) {
-            throw new Error('WaveformPlaylist: Container element not found');
+            throw new Error('[WaveformPlaylist] Container element not found');
         }
 
         // Check for WaveformPlayer dependency
         if (typeof window.WaveformPlayer === 'undefined') {
-            throw new Error('WaveformPlaylist: WaveformPlayer is required but not found');
+            throw new Error('[WaveformPlaylist] WaveformPlayer is required but not found');
         }
 
         // Parse options from data attributes and merge with provided options
@@ -916,7 +916,7 @@ function autoInit() {
             new WaveformPlaylist(element);
             element.dataset.waveformPlaylistInitialized = 'true';
         } catch (error) {
-            console.error('Failed to initialize WaveformPlaylist:', error);
+            console.error('[WaveformPlaylist] Failed to initialize:', error);
         }
     });
 }
