@@ -1,6 +1,6 @@
 {
   "name": "@arraypress/waveform-playlist",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Playlist and chapter navigation for WaveformPlayer",
   "main": "dist/waveform-playlist.js",
   "module": "dist/waveform-playlist.esm.js",
@@ -45,7 +45,7 @@
   },
   "homepage": "https://github.com/arraypress/waveform-playlist#readme",
   "peerDependencies": {
-    "@arraypress/waveform-player": "^1.1.0"
+    "@arraypress/waveform-player": "^1.7.2"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"
