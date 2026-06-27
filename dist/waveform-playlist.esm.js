@@ -30,6 +30,7 @@ var WaveformPlaylist = class {
     this.listElement = null;
     this.isMinimal = this.options.layout === "minimal";
     this.isPlaying = false;
+    this.keydownHandler = null;
     this.parseTracks();
     if (this.tracks.length > 0) {
       this.init();
@@ -286,6 +287,7 @@ var WaveformPlaylist = class {
   createTrackList() {
     const listContainer = document.createElement("div");
     listContainer.className = "wp-list-container";
+    listContainer.tabIndex = 0;
     const list = document.createElement("ul");
     list.className = "wp-list";
     this.tracks.forEach((track, index) => {
@@ -458,19 +460,66 @@ var WaveformPlaylist = class {
    * @param {number} time - Time in seconds to seek to
    */
   seekToChapter(trackIndex, time) {
-    if (trackIndex !== this.currentTrackIndex) {
-      this.selectTrack(trackIndex);
-      setTimeout(() => {
-        this.player.seekTo(time);
-        if (!this.player.isPlaying) {
-          this.player.play();
-        }
-      }, 100);
-    } else {
+    if (trackIndex === this.currentTrackIndex) {
       this.player.seekTo(time);
       if (!this.player.isPlaying) {
         this.player.play();
       }
+      return;
+    }
+    if (trackIndex < 0 || trackIndex >= this.tracks.length) return;
+    this.whenPlayerReady(() => {
+      this.player.seekTo(time);
+      if (!this.player.isPlaying) {
+        this.player.play();
+      }
+    });
+    this.selectTrack(trackIndex);
+  }
+  /**
+   * Run a callback exactly once, when the core player has finished
+   * (re)loading its current track.
+   *
+   * Listens for whichever load signal the installed core version exposes so
+   * the seek is deterministic across versions:
+   *   - the `waveformplayer:ready` CustomEvent (detail: { player, url })
+   *     the core dispatches after init/load, and
+   *   - the `onLoad(player)` option the core invokes after a load.
+   * Whichever fires first wins and the other hook is torn down, so the
+   * callback never runs twice.
+   *
+   * @private
+   * @param {Function} callback - Invoked once the player's track is ready
+   */
+  whenPlayerReady(callback) {
+    if (!this.player) return;
+    let done = false;
+    const prevOnLoad = this.player.options ? this.player.options.onLoad : null;
+    const onReady = (e) => {
+      if (e.detail && e.detail.player && e.detail.player !== this.player) return;
+      finish();
+    };
+    const finish = () => {
+      if (done) return;
+      done = true;
+      document.removeEventListener("waveformplayer:ready", onReady, true);
+      if (this.player && this.player.container) {
+        this.player.container.removeEventListener("waveformplayer:ready", onReady, true);
+      }
+      if (this.player && this.player.options) {
+        this.player.options.onLoad = prevOnLoad;
+      }
+      callback();
+    };
+    document.addEventListener("waveformplayer:ready", onReady, true);
+    if (this.player.container) {
+      this.player.container.addEventListener("waveformplayer:ready", onReady, true);
+    }
+    if (this.player.options) {
+      this.player.options.onLoad = (player) => {
+        if (typeof prevOnLoad === "function") prevOnLoad(player);
+        finish();
+      };
     }
   }
   /**
@@ -523,8 +572,11 @@ var WaveformPlaylist = class {
    * @private
    */
   bindKeyboard() {
-    document.addEventListener("keydown", (e) => {
-      if (!this.container.contains(document.activeElement) && !this.player?.container.contains(document.activeElement)) {
+    this.keydownHandler = (e) => {
+      const active = document.activeElement;
+      const playlistHasFocus = this.container.contains(active);
+      const playerHasFocus = !!this.player?.container.contains(active);
+      if (!playlistHasFocus && !playerHasFocus) {
         return;
       }
       switch (e.key.toLowerCase()) {
@@ -541,14 +593,15 @@ var WaveformPlaylist = class {
           }
           break;
       }
-      if (this.tracks.length > 1 && e.key >= "1" && e.key <= "9") {
-        const index = parseInt(e.key) - 1;
+      if (this.tracks.length > 1 && playlistHasFocus && !playerHasFocus && e.key >= "1" && e.key <= "9") {
+        const index = parseInt(e.key, 10) - 1;
         if (index < this.tracks.length) {
           e.preventDefault();
           this.selectTrack(index);
         }
       }
-    });
+    };
+    document.addEventListener("keydown", this.keydownHandler);
   }
   /**
    * Parse time string to seconds
@@ -623,6 +676,10 @@ var WaveformPlaylist = class {
    * @public
    */
   destroy() {
+    if (this.keydownHandler) {
+      document.removeEventListener("keydown", this.keydownHandler);
+      this.keydownHandler = null;
+    }
     if (this.player) {
       this.player.destroy();
     }

@@ -5,9 +5,20 @@
   "main": "dist/waveform-playlist.js",
   "module": "dist/waveform-playlist.esm.js",
   "unpkg": "dist/waveform-playlist.min.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./dist/waveform-playlist.esm.js",
+      "require": "./dist/waveform-playlist.js"
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist/",
     "src/",
+    "index.d.ts",
     "README.md",
     "LICENSE"
   ],

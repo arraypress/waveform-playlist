@@ -54,6 +54,7 @@ export class WaveformPlaylist {
         this.listElement = null;
         this.isMinimal = this.options.layout === 'minimal';
         this.isPlaying = false;
+        this.keydownHandler = null;
 
         // Parse tracks from markup
         this.parseTracks();
@@ -364,6 +365,9 @@ export class WaveformPlaylist {
     createTrackList() {
         const listContainer = document.createElement('div');
         listContainer.className = 'wp-list-container';
+        // Make the list focusable so keyboard users can Tab to the playlist and
+        // use the 1-9 track-select shortcuts without the player stealing them.
+        listContainer.tabIndex = 0;
 
         const list = document.createElement('ul');
         list.className = 'wp-list';
@@ -589,20 +593,87 @@ export class WaveformPlaylist {
      * @param {number} time - Time in seconds to seek to
      */
     seekToChapter(trackIndex, time) {
-        if (trackIndex !== this.currentTrackIndex) {
-            this.selectTrack(trackIndex);
-            // Wait for track to load before seeking
-            setTimeout(() => {
-                this.player.seekTo(time);
-                if (!this.player.isPlaying) {
-                    this.player.play();
-                }
-            }, 100);
-        } else {
+        // Same track - seek straight away.
+        if (trackIndex === this.currentTrackIndex) {
             this.player.seekTo(time);
             if (!this.player.isPlaying) {
                 this.player.play();
             }
+            return;
+        }
+
+        if (trackIndex < 0 || trackIndex >= this.tracks.length) return;
+
+        // Cross-track: load the new track, then seek once it is actually ready.
+        // Waiting on the core player's load signal (instead of a fixed
+        // setTimeout) keeps the seek from being lost on slow loads and from
+        // double-firing on fast ones. Register the listener BEFORE selectTrack()
+        // kicks off the async load so we never miss the ready signal.
+        this.whenPlayerReady(() => {
+            this.player.seekTo(time);
+            if (!this.player.isPlaying) {
+                this.player.play();
+            }
+        });
+
+        this.selectTrack(trackIndex);
+    }
+
+    /**
+     * Run a callback exactly once, when the core player has finished
+     * (re)loading its current track.
+     *
+     * Listens for whichever load signal the installed core version exposes so
+     * the seek is deterministic across versions:
+     *   - the `waveformplayer:ready` CustomEvent (detail: { player, url })
+     *     the core dispatches after init/load, and
+     *   - the `onLoad(player)` option the core invokes after a load.
+     * Whichever fires first wins and the other hook is torn down, so the
+     * callback never runs twice.
+     *
+     * @private
+     * @param {Function} callback - Invoked once the player's track is ready
+     */
+    whenPlayerReady(callback) {
+        if (!this.player) return;
+
+        let done = false;
+        const prevOnLoad = this.player.options ? this.player.options.onLoad : null;
+
+        const onReady = (e) => {
+            // Ignore ready events from other players sharing the document.
+            if (e.detail && e.detail.player && e.detail.player !== this.player) return;
+            finish();
+        };
+
+        const finish = () => {
+            if (done) return;
+            done = true;
+
+            document.removeEventListener('waveformplayer:ready', onReady, true);
+            if (this.player && this.player.container) {
+                this.player.container.removeEventListener('waveformplayer:ready', onReady, true);
+            }
+            if (this.player && this.player.options) {
+                this.player.options.onLoad = prevOnLoad;
+            }
+
+            callback();
+        };
+
+        // Capture-phase listeners on both document and the player container so we
+        // catch the event whether or not the core bubbles it.
+        document.addEventListener('waveformplayer:ready', onReady, true);
+        if (this.player.container) {
+            this.player.container.addEventListener('waveformplayer:ready', onReady, true);
+        }
+
+        // Fallback for cores that only expose the onLoad option (no event).
+        if (this.player.options) {
+            this.player.options.onLoad = (player) => {
+                if (typeof prevOnLoad === 'function') prevOnLoad(player);
+                finish();
+            };
         }
     }
 
@@ -666,10 +737,21 @@ export class WaveformPlaylist {
      * @private
      */
     bindKeyboard() {
-        document.addEventListener('keydown', (e) => {
-            // Only handle if playlist or player is focused
-            if (!this.container.contains(document.activeElement) &&
-                !this.player?.container.contains(document.activeElement)) {
+        // Store the bound handler so destroy() can remove it. A document-level
+        // listener that is never cleaned up leaks closures and, with several
+        // playlists on one page, would cross-fire between instances.
+        this.keydownHandler = (e) => {
+            const active = document.activeElement;
+            // `contains` matches the element itself too, so when the player has
+            // focus playlistHasFocus is also true (the player lives inside the
+            // playlist container). Tracking both lets us tell "playlist UI" from
+            // "player" focus below.
+            const playlistHasFocus = this.container.contains(active);
+            const playerHasFocus = !!this.player?.container.contains(active);
+
+            // Only act when this playlist (or its own player) holds focus, so
+            // multiple playlists on the same page never cross-fire.
+            if (!playlistHasFocus && !playerHasFocus) {
                 return;
             }
 
@@ -688,15 +770,25 @@ export class WaveformPlaylist {
                     break;
             }
 
-            // Number keys for track selection (only if multiple tracks)
-            if (this.tracks.length > 1 && e.key >= '1' && e.key <= '9') {
-                const index = parseInt(e.key) - 1;
+            // Number keys 1-9 select a track. The core player already binds 0-9
+            // to "seek to 0%-90%" whenever it holds focus, so handling bare
+            // digits here too would make a single keypress BOTH seek and switch
+            // track. To avoid that collision we only treat digits as
+            // track-select when focus is on the playlist's own UI (e.g. a track
+            // button or the focusable list) and NOT on the player. When the
+            // player is focused, bare digits fall through to the core player's
+            // documented seek behaviour.
+            if (this.tracks.length > 1 && playlistHasFocus && !playerHasFocus &&
+                e.key >= '1' && e.key <= '9') {
+                const index = parseInt(e.key, 10) - 1;
                 if (index < this.tracks.length) {
                     e.preventDefault();
                     this.selectTrack(index);
                 }
             }
-        });
+        };
+
+        document.addEventListener('keydown', this.keydownHandler);
     }
 
     /**
@@ -779,6 +871,13 @@ export class WaveformPlaylist {
      * @public
      */
     destroy() {
+        // Remove the global keydown listener so it does not leak or keep
+        // firing after this playlist is gone.
+        if (this.keydownHandler) {
+            document.removeEventListener('keydown', this.keydownHandler);
+            this.keydownHandler = null;
+        }
+
         // Destroy player instance
         if (this.player) {
             this.player.destroy();
