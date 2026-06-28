@@ -20,9 +20,21 @@
    Layout Components
    ========================================================================== */
 
-/* Player Container */
+/* Player Container — the "now playing" header.
+   Inset to match the track rows below so the header's artwork / title / time
+   line up with the list columns. The list (.wp-list-container) has a 1px border
+   and each row (.wp-item) has 1rem of horizontal padding, so without this the
+   header sits ~17px to the left of the rows and nothing aligns. */
 .wp-player {
     margin-bottom: 1rem;
+    padding: 0 calc(1rem + 1px);
+}
+
+/* Match the track-row gap (1rem) so the header's title/time fall into the same
+   columns as the list — the player's own info row defaults to a tighter gap. */
+.wp-player .waveform-track,
+.wp-player .waveform-info {
+    gap: 1rem;
 }
 
 /* List Container */
@@ -268,6 +280,11 @@
 @media (max-width: 480px) {
     .wp-item {
         padding: 0.625rem 0.75rem;
+    }
+
+    /* Keep the header inset matching the tighter mobile row padding. */
+    .wp-player {
+        padding: 0 calc(0.75rem + 1px);
     }
 
     .wp-chapters {
