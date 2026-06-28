@@ -69,39 +69,9 @@ var WaveformPlaylist = (() => {
     parseOptions(providedOptions) {
       const container = this.container;
       const options = { ...providedOptions };
-      const playerAttributes = [
-        "url",
-        "waveformStyle",
-        "barWidth",
-        "barSpacing",
-        "height",
-        "samples",
-        "colorPreset",
-        "waveformColor",
-        "progressColor",
-        "buttonColor",
-        "buttonHoverColor",
-        "textColor",
-        "textSecondaryColor",
-        "backgroundColor",
-        "borderColor",
-        "showTime",
-        "showBPM",
-        "showPlaybackSpeed",
-        "playbackRate",
-        "autoplay",
-        "singlePlay",
-        "playOnSeek",
-        "enableMediaSession"
-      ];
-      playerAttributes.forEach((attr) => {
-        const dataAttr = container.dataset[attr];
-        if (dataAttr !== void 0) {
-          if (dataAttr === "true") options[attr] = true;
-          else if (dataAttr === "false") options[attr] = false;
-          else options[attr] = dataAttr;
-        }
-      });
+      const fromData = this.parsePlayerDataAttributes(container);
+      ["audioMode", "url", "title", "subtitle", "album", "artwork", "markers", "waveform"].forEach((key) => delete fromData[key]);
+      Object.assign(options, fromData);
       options.layout = container.dataset.layout || options.layout || "list";
       options.continuous = container.dataset.continuous === "true" || options.continuous || false;
       options.expandChapters = container.dataset.expandChapters !== "false";
@@ -114,6 +84,99 @@ var WaveformPlaylist = (() => {
       }
       options.chapterMarkerColor = container.dataset.chapterMarkerColor || "rgba(168, 85, 247, 0.8)";
       return options;
+    }
+    /**
+     * Read the player's `data-*` option surface off the container.
+     *
+     * Prefers the core's own parser (`WaveformPlayer.utils.parseDataAttributes`)
+     * so the playlist inherits the complete, current contract and never drifts
+     * as the player gains options. Falls back to a local parser only for cores
+     * older than the one that exposes the bridge helper.
+     *
+     * @private
+     * @param {HTMLElement} container - The playlist container element
+     * @returns {Object} Sparse player options parsed from the container's data-*
+     */
+    parsePlayerDataAttributes(container) {
+      const utils = typeof window !== "undefined" && window.WaveformPlayer && window.WaveformPlayer.utils;
+      if (utils && typeof utils.parseDataAttributes === "function") {
+        return { ...utils.parseDataAttributes(container) };
+      }
+      return this.parsePlayerDataAttributesFallback(container);
+    }
+    /**
+     * Container-level `data-*` parser used only with cores that predate
+     * `WaveformPlayer.utils.parseDataAttributes`. Mirrors the player's
+     * container-relevant options with correct dataset keys and per-key coercion.
+     *
+     * Note: the dataset key for `data-show-bpm` is `showBpm`, which maps to the
+     * `showBPM` option. Reading `dataset.showBPM` would target the wrong
+     * attribute (`data-show-b-p-m`) and silently drop the flag.
+     *
+     * @private
+     * @param {HTMLElement} container - The playlist container element
+     * @returns {Object} Sparse player options parsed from the container's data-*
+     */
+    parsePlayerDataAttributesFallback(container) {
+      const ds = container.dataset;
+      const opts = {};
+      const str = (k, o = k) => {
+        if (ds[k] !== void 0) opts[o] = ds[k];
+      };
+      const bool = (k, o = k) => {
+        if (ds[k] === "true") opts[o] = true;
+        else if (ds[k] === "false") opts[o] = false;
+      };
+      const int = (k, o = k) => {
+        if (ds[k]) opts[o] = parseInt(ds[k], 10);
+      };
+      const float = (k, o = k) => {
+        if (ds[k]) opts[o] = parseFloat(ds[k]);
+      };
+      const json = (k, o = k) => {
+        if (!ds[k]) return;
+        try {
+          opts[o] = JSON.parse(ds[k]);
+        } catch (e) {
+          console.warn(`[WaveformPlaylist] Invalid ${k} JSON:`, e);
+        }
+      };
+      str("waveformStyle");
+      int("barWidth");
+      int("barSpacing");
+      int("barRadius");
+      str("buttonAlign");
+      int("height");
+      int("samples");
+      str("preload");
+      str("colorPreset");
+      str("waveformColor");
+      str("progressColor");
+      str("buttonColor");
+      str("buttonHoverColor");
+      str("textColor");
+      str("textSecondaryColor");
+      str("backgroundColor");
+      str("borderColor");
+      bool("autoplay");
+      bool("showControls");
+      bool("showInfo");
+      bool("showTime");
+      bool("showHoverTime");
+      bool("showBpm", "showBPM");
+      bool("singlePlay");
+      bool("playOnSeek");
+      bool("showPlaybackSpeed");
+      bool("enableMediaSession");
+      bool("showMarkers");
+      bool("accessibleSeek");
+      float("playbackRate");
+      json("playbackRates");
+      str("seekLabel");
+      str("errorText");
+      str("playIcon");
+      str("pauseIcon");
+      return opts;
     }
     /**
      * Parse tracks and chapters from container markup

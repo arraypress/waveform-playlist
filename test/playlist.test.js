@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MockWaveformPlayer } from './setup.js';
 import { WaveformPlaylist } from '../src/js/index.js';
 
@@ -42,7 +42,21 @@ afterEach(() => {
 	// cross-test leakage between playlist instances.
 	created.splice(0).forEach((pl) => { try { pl.destroy(); } catch {} });
 	document.body.innerHTML = '';
+	// Some tests attach a utils bridge to the mock core; reset it so others
+	// exercise the local fallback parser.
+	delete MockWaveformPlayer.utils;
 });
+
+/** Build a container with data-* attributes and tracks, and construct a playlist. */
+function mountWithData(dataset, html = TWO_TRACKS, options = {}) {
+	const container = document.createElement('div');
+	Object.assign(container.dataset, dataset);
+	container.innerHTML = html;
+	document.body.appendChild(container);
+	const playlist = new WaveformPlaylist(container, options);
+	created.push(playlist);
+	return { container, playlist };
+}
 
 describe('parsing', () => {
 	it('parses tracks from [data-track] markup', () => {
@@ -265,6 +279,56 @@ describe('continuous mode', () => {
 		playlist.selectTrack(1);
 		playlist.onTrackEnd();
 		expect(playlist.currentTrackIndex).toBe(1);
+	});
+});
+
+describe('container data-* coverage', () => {
+	it('forwards the full player data-* surface via the local fallback parser', () => {
+		// The mock core exposes no utils bridge, so the fallback parser runs.
+		const { playlist } = mountWithData({
+			barRadius: '4',
+			buttonAlign: 'right',
+			showControls: 'false',
+			showHoverTime: 'true',
+			seekLabel: 'Scrub',
+			playbackRates: '[1, 1.5, 2]',
+		});
+		const opts = playlist.player.options;
+		expect(opts.barRadius).toBe(4);          // coerced to number
+		expect(opts.buttonAlign).toBe('right');
+		expect(opts.showControls).toBe(false);   // coerced to boolean
+		expect(opts.showHoverTime).toBe(true);
+		expect(opts.seekLabel).toBe('Scrub');
+		expect(opts.playbackRates).toEqual([1, 1.5, 2]); // JSON-parsed
+	});
+
+	it('maps data-show-bpm to the showBPM option (casing-bug regression)', () => {
+		const { playlist } = mountWithData({ showBpm: 'true' }); // attribute data-show-bpm
+		expect(playlist.player.options.showBPM).toBe(true);
+	});
+
+	it('delegates to WaveformPlayer.utils.parseDataAttributes when present, stripping owned keys', () => {
+		const spy = vi.fn(() => ({
+			height: 222,
+			waveformStyle: 'seekbar',
+			audioMode: 'external',   // owned by the playlist -> must be stripped
+			url: '/ignore-me.mp3',   // per-track content -> must be stripped
+		}));
+		MockWaveformPlayer.utils = { parseDataAttributes: spy };
+
+		const { container, playlist } = mountWithData({});
+		expect(spy).toHaveBeenCalledWith(container);
+		expect(playlist.player.options.height).toBe(222);
+		expect(playlist.player.options.waveformStyle).toBe('seekbar');
+		expect(playlist.player.options.audioMode).toBeUndefined();
+		// url comes from the first track, never the stripped delegated value.
+		expect(playlist.player.options.url).toBe('/audio/a.mp3');
+	});
+
+	it('keeps constructor options working alongside data-* (data-* wins on conflict)', () => {
+		const { playlist } = mountWithData({ height: '150' }, TWO_TRACKS, { barWidth: 5, height: 999 });
+		expect(playlist.player.options.barWidth).toBe(5);   // from JS options
+		expect(playlist.player.options.height).toBe(150);   // data-* overrides JS
 	});
 });
 
