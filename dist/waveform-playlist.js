@@ -34,7 +34,7 @@ var WaveformPlaylist = (() => {
      * @param {boolean} [options.expandChapters=true] - Show chapters under tracks
      * @param {boolean} [options.showDuration=true] - Display track durations
      * @param {boolean|null} [options.showChapterMarkers=null] - Show chapters as waveform markers (null = smart default)
-     * @param {string} [options.chapterMarkerColor='rgba(168, 85, 247, 0.8)'] - Default color for chapter markers
+     * @param {string} [options.chapterMarkerColor='rgba(161, 161, 170, 0.85)'] - Default color for chapter markers
      * @param {boolean} [options.showPlayState=true] - Show play/pause icon on active track artwork
      * @throws {Error} If container not found or WaveformPlayer not available
      */
@@ -82,7 +82,7 @@ var WaveformPlaylist = (() => {
       } else {
         options.showChapterMarkers = null;
       }
-      options.chapterMarkerColor = container.dataset.chapterMarkerColor || "rgba(168, 85, 247, 0.8)";
+      options.chapterMarkerColor = container.dataset.chapterMarkerColor || "rgba(161, 161, 170, 0.85)";
       return options;
     }
     /**

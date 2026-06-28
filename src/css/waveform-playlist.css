@@ -57,7 +57,7 @@
 }
 
 .wp-item.wp-active {
-    background: rgba(168, 85, 247, 0.1);
+    background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 .wp-item:last-child {
@@ -78,8 +78,8 @@
 }
 
 .wp-item.wp-active .wp-indicator {
-    background: rgba(168, 85, 247, 0.2);
-    color: #a855f7;
+    background: color-mix(in srgb, currentColor 20%, transparent);
+    color: currentColor;
 }
 
 /* Track Artwork */
@@ -171,8 +171,8 @@
 }
 
 .wp-chapter.wp-active {
-    background: rgba(168, 85, 247, 0.15);
-    color: #a855f7;
+    background: color-mix(in srgb, currentColor 15%, transparent);
+    color: currentColor;
 }
 
 .wp-chapter-time {
@@ -182,7 +182,7 @@
 }
 
 .wp-chapter.wp-active .wp-chapter-time {
-    color: #a855f7;
+    color: currentColor;
     font-weight: 600;
 }
 
@@ -206,7 +206,7 @@
 }
 
 .wp-chapters-only .wp-chapter-item.wp-active {
-    background: rgba(168, 85, 247, 0.1);
+    background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 .wp-chapters-only .wp-chapter-item:last-child {
@@ -215,12 +215,12 @@
 
 .wp-chapters-only .wp-time {
     font-family: monospace;
-    color: rgba(168, 85, 247, 0.9);
+    color: color-mix(in srgb, currentColor 90%, transparent);
     min-width: 3rem;
 }
 
 .wp-chapters-only .wp-chapter-item.wp-active .wp-time {
-    color: #a855f7;
+    color: currentColor;
     font-weight: 600;
 }
 
@@ -256,9 +256,9 @@
 }
 
 .wp-track-btn.wp-active {
-    background: rgba(168, 85, 247, 0.2);
-    border-color: rgba(168, 85, 247, 0.5);
-    color: #a855f7;
+    background: color-mix(in srgb, currentColor 20%, transparent);
+    border-color: color-mix(in srgb, currentColor 50%, transparent);
+    color: currentColor;
 }
 
 /* ==========================================================================
