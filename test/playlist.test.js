@@ -1,0 +1,289 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { MockWaveformPlayer } from './setup.js';
+import { WaveformPlaylist } from '../src/js/index.js';
+
+/**
+ * These exercise the playlist controller in jsdom against the MockWaveformPlayer
+ * installed in setup.js. They focus on parsing, navigation, the keyboard
+ * contract, accessibility attributes, and teardown — not on audio or pixels.
+ */
+
+const created = [];
+
+/** Build a container from HTML, append it, and return a constructed playlist. */
+function mount(html, options = {}) {
+	const container = document.createElement('div');
+	container.innerHTML = html;
+	document.body.appendChild(container);
+	const playlist = new WaveformPlaylist(container, options);
+	created.push(playlist);
+	return { container, playlist };
+}
+
+const TWO_TRACKS = `
+	<div data-track data-url="/audio/a.mp3" data-title="Track A" data-subtitle="Artist A" data-artwork="/art/a.jpg" data-duration="3:00"></div>
+	<div data-track data-url="/audio/b.mp3" data-title="Track B" data-duration="4:30"></div>
+`;
+
+const SINGLE_WITH_CHAPTERS = `
+	<div data-track data-url="/audio/show.mp3" data-title="The Show">
+		<span data-chapter data-time="0:00">Intro</span>
+		<span data-chapter data-time="1:30">Main</span>
+		<span data-chapter data-time="3:00">Outro</span>
+	</div>
+`;
+
+beforeEach(() => {
+	MockWaveformPlayer.instances = [];
+});
+
+afterEach(() => {
+	// destroy() removes the document-level keydown listener, preventing
+	// cross-test leakage between playlist instances.
+	created.splice(0).forEach((pl) => { try { pl.destroy(); } catch {} });
+	document.body.innerHTML = '';
+});
+
+describe('parsing', () => {
+	it('parses tracks from [data-track] markup', () => {
+		const { playlist } = mount(TWO_TRACKS);
+		expect(playlist.tracks).toHaveLength(2);
+		expect(playlist.tracks[0].title).toBe('Track A');
+		expect(playlist.tracks[0].subtitle).toBe('Artist A');
+		expect(playlist.tracks[1].url).toBe('/audio/b.mp3');
+	});
+
+	it('falls back to a title derived from the URL when none is given', () => {
+		const { playlist } = mount('<div data-track data-url="/songs/my-great_song.mp3"></div>');
+		expect(playlist.tracks[0].title).toBe('my great song');
+	});
+
+	it('parses chapters with time in seconds and label text', () => {
+		const { playlist } = mount(SINGLE_WITH_CHAPTERS);
+		const chapters = playlist.tracks[0].chapters;
+		expect(chapters).toHaveLength(3);
+		expect(chapters[1]).toMatchObject({ time: 90, label: 'Main' });
+	});
+
+	it('does not initialise when there are no tracks', () => {
+		const { playlist, container } = mount('<p>nothing here</p>');
+		expect(playlist.tracks).toHaveLength(0);
+		expect(playlist.player).toBeNull();
+		expect(container.querySelector('.wp-list')).toBeNull();
+	});
+});
+
+describe('time helpers', () => {
+	it('parseTime handles M:SS and bare seconds', () => {
+		const { playlist } = mount(TWO_TRACKS);
+		expect(playlist.parseTime('2:05')).toBe(125);
+		expect(playlist.parseTime('45')).toBe(45);
+	});
+
+	it('formatTime zero-pads seconds', () => {
+		const { playlist } = mount(TWO_TRACKS);
+		expect(playlist.formatTime(125)).toBe('2:05');
+		expect(playlist.formatTime(9)).toBe('0:09');
+	});
+
+	it('extractTitleFromUrl strips path, extension and separators', () => {
+		const { playlist } = mount(TWO_TRACKS);
+		expect(playlist.extractTitleFromUrl('/a/b/cool-track_01.mp3')).toBe('cool track 01');
+		expect(playlist.extractTitleFromUrl(undefined)).toBe('Untitled');
+	});
+});
+
+describe('track list accessibility', () => {
+	it('renders the list as a labelled list of button rows', () => {
+		const { container } = mount(TWO_TRACKS);
+		const list = container.querySelector('.wp-list');
+		expect(list.getAttribute('aria-label')).toBe('Playlist');
+
+		const items = container.querySelectorAll('.wp-item');
+		expect(items).toHaveLength(2);
+		items.forEach((item) => {
+			expect(item.getAttribute('role')).toBe('button');
+			expect(item.tabIndex).toBe(0);
+		});
+	});
+
+	it('marks the active track with aria-current', () => {
+		const { container } = mount(TWO_TRACKS);
+		const items = container.querySelectorAll('.wp-item');
+		expect(items[0].getAttribute('aria-current')).toBe('true');
+		expect(items[1].hasAttribute('aria-current')).toBe(false);
+	});
+
+	it('treats artwork as decorative and hides the number indicator from AT', () => {
+		const { container } = mount(TWO_TRACKS);
+		// Track A has artwork; Track B has a number indicator.
+		const artwork = container.querySelector('.wp-artwork');
+		expect(artwork.getAttribute('alt')).toBe('');
+		const indicator = container.querySelector('.wp-indicator');
+		expect(indicator.getAttribute('aria-hidden')).toBe('true');
+	});
+});
+
+describe('track interaction', () => {
+	it('selects a different track on click and moves aria-current', () => {
+		const { container, playlist } = mount(TWO_TRACKS);
+		const items = container.querySelectorAll('.wp-item');
+		items[1].click();
+
+		expect(playlist.currentTrackIndex).toBe(1);
+		expect(playlist.player.calls.loadTrack).toHaveLength(1);
+		expect(playlist.player.calls.loadTrack[0].url).toBe('/audio/b.mp3');
+		expect(items[1].getAttribute('aria-current')).toBe('true');
+		expect(items[0].hasAttribute('aria-current')).toBe(false);
+	});
+
+	it('toggles play/pause when the active track is clicked', () => {
+		const { container, playlist } = mount(TWO_TRACKS);
+		const first = container.querySelectorAll('.wp-item')[0];
+
+		first.click();                       // active + not playing -> play
+		expect(playlist.player.calls.play).toBe(1);
+		first.click();                       // active + playing -> pause
+		expect(playlist.player.calls.pause).toBe(1);
+	});
+
+	it('activates a row with the Enter and Space keys', () => {
+		const { container, playlist } = mount(TWO_TRACKS);
+		const second = container.querySelectorAll('.wp-item')[1];
+
+		second.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		expect(playlist.currentTrackIndex).toBe(1);
+
+		const first = container.querySelectorAll('.wp-item')[0];
+		first.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+		expect(playlist.currentTrackIndex).toBe(0);
+	});
+});
+
+describe('keyboard shortcuts', () => {
+	it('n / p navigate to next / previous track when the playlist has focus', () => {
+		const { container, playlist } = mount(TWO_TRACKS);
+		container.querySelectorAll('.wp-item')[0].focus();
+
+		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n' }));
+		expect(playlist.currentTrackIndex).toBe(1);
+
+		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p' }));
+		expect(playlist.currentTrackIndex).toBe(0);
+	});
+
+	it('number keys select a track when a playlist row holds focus', () => {
+		const { container, playlist } = mount(TWO_TRACKS);
+		container.querySelectorAll('.wp-item')[0].focus();
+
+		document.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+		expect(playlist.currentTrackIndex).toBe(1);
+	});
+
+	it('ignores shortcuts when focus is outside the playlist', () => {
+		const { playlist } = mount(TWO_TRACKS);
+		const outside = document.createElement('button');
+		document.body.appendChild(outside);
+		outside.focus();
+
+		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n' }));
+		expect(playlist.currentTrackIndex).toBe(0);
+	});
+});
+
+describe('minimal layout', () => {
+	it('renders real buttons and reflects selection with aria-pressed', () => {
+		const { container, playlist } = mount(TWO_TRACKS, { layout: 'minimal' });
+		const btns = container.querySelectorAll('.wp-track-btn');
+		expect(btns).toHaveLength(2);
+		expect(btns[0].tagName).toBe('BUTTON');
+		expect(btns[0].getAttribute('aria-pressed')).toBe('true');
+		expect(btns[1].getAttribute('aria-pressed')).toBe('false');
+
+		btns[1].click();
+		expect(playlist.currentTrackIndex).toBe(1);
+		expect(btns[1].getAttribute('aria-pressed')).toBe('true');
+		expect(btns[0].getAttribute('aria-pressed')).toBe('false');
+	});
+});
+
+describe('single track with chapters', () => {
+	it('renders a labelled chapter list of button rows', () => {
+		const { container } = mount(SINGLE_WITH_CHAPTERS);
+		const list = container.querySelector('.wp-chapters-only');
+		expect(list.getAttribute('aria-label')).toBe('Chapters');
+
+		const items = container.querySelectorAll('.wp-chapter-item');
+		expect(items).toHaveLength(3);
+		items.forEach((item) => {
+			expect(item.getAttribute('role')).toBe('button');
+			expect(item.tabIndex).toBe(0);
+		});
+	});
+
+	it('seeks to a chapter when its row is activated', () => {
+		const { container, playlist } = mount(SINGLE_WITH_CHAPTERS);
+		container.querySelectorAll('.wp-chapter-item')[2].click();
+		expect(playlist.player.calls.seekTo).toContain(180);
+	});
+
+	it('reflects the active chapter with aria-current as playback advances', () => {
+		const { container, playlist } = mount(SINGLE_WITH_CHAPTERS);
+		playlist.updateActiveChapter(95); // inside the second chapter (1:30+)
+		const items = container.querySelectorAll('.wp-chapter-item');
+		expect(items[1].getAttribute('aria-current')).toBe('true');
+		expect(items[0].hasAttribute('aria-current')).toBe(false);
+	});
+});
+
+describe('expanded chapters under a track', () => {
+	it('makes nested chapter rows keyboard-operable', () => {
+		const html = `
+			<div data-track data-url="/a.mp3" data-title="A">
+				<span data-chapter data-time="0:30">Part 1</span>
+			</div>
+			<div data-track data-url="/b.mp3" data-title="B"></div>
+		`;
+		const { container } = mount(html);
+		const chapter = container.querySelector('.wp-chapter');
+		expect(chapter.getAttribute('role')).toBe('button');
+		expect(chapter.tabIndex).toBe(0);
+		expect(container.querySelector('.wp-chapters').getAttribute('aria-label')).toBe('Chapters');
+	});
+});
+
+describe('continuous mode', () => {
+	it('advances to the next track when one ends', () => {
+		const { playlist } = mount(TWO_TRACKS, { continuous: true });
+		playlist.onTrackEnd();
+		expect(playlist.currentTrackIndex).toBe(1);
+		expect(playlist.player.calls.loadTrack).toHaveLength(1);
+	});
+
+	it('does not advance past the last track', () => {
+		const { playlist } = mount(TWO_TRACKS, { continuous: true });
+		playlist.selectTrack(1);
+		playlist.onTrackEnd();
+		expect(playlist.currentTrackIndex).toBe(1);
+	});
+});
+
+describe('destroy', () => {
+	it('removes the keydown listener, restores markup and tears down the player', () => {
+		const { container, playlist } = mount(TWO_TRACKS);
+		const original = container.querySelector('[data-track]');
+		const player = playlist.player;
+
+		playlist.destroy();
+
+		expect(player.calls.destroy).toBe(1);
+		expect(container.querySelector('.wp-list')).toBeNull();
+		expect(original.style.display).toBe('');        // un-hidden
+		expect(playlist.tracks).toHaveLength(0);
+
+		// The global shortcut handler must no longer fire after destroy.
+		expect(() => {
+			document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n' }));
+		}).not.toThrow();
+	});
+});

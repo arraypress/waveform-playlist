@@ -301,16 +301,32 @@ export class WaveformPlaylist {
         if (this.tracks.length === 1 && track.chapters.length > 0) {
             // Single track with chapters - update chapter items
             this.listElement.querySelectorAll('.wp-chapter-item').forEach((item, i) => {
-                item.classList.toggle('wp-active', i === activeChapterIndex);
+                this.setChapterActive(item, i === activeChapterIndex);
             });
         } else if (this.tracks.length > 1 && this.options.expandChapters) {
             // Multiple tracks - update chapters under current track
             const chapters = this.listElement.querySelector(`.wp-chapters[data-track-index="${this.currentTrackIndex}"]`);
             if (chapters) {
                 chapters.querySelectorAll('.wp-chapter').forEach((item, i) => {
-                    item.classList.toggle('wp-active', i === activeChapterIndex);
+                    this.setChapterActive(item, i === activeChapterIndex);
                 });
             }
+        }
+    }
+
+    /**
+     * Toggle a chapter row's active styling and its `aria-current` state so the
+     * playing chapter is conveyed to assistive technology, not just visually.
+     * @private
+     * @param {HTMLElement} item - Chapter row element
+     * @param {boolean} isActive - Whether this chapter is the active one
+     */
+    setChapterActive(item, isActive) {
+        item.classList.toggle('wp-active', isActive);
+        if (isActive) {
+            item.setAttribute('aria-current', 'true');
+        } else {
+            item.removeAttribute('aria-current');
         }
     }
 
@@ -326,6 +342,7 @@ export class WaveformPlaylist {
 
         const list = document.createElement('ul');
         list.className = 'wp-list wp-chapters-only';
+        list.setAttribute('aria-label', 'Chapters');
 
         track.chapters.forEach((chapter, index) => {
             const item = document.createElement('li');
@@ -343,7 +360,7 @@ export class WaveformPlaylist {
             label.textContent = chapter.label;
             item.appendChild(label);
 
-            item.addEventListener('click', () => {
+            this.makeActivatable(item, () => {
                 this.player.seekTo(chapter.time);
                 if (!this.player.isPlaying) {
                     this.player.play();
@@ -365,12 +382,13 @@ export class WaveformPlaylist {
     createTrackList() {
         const listContainer = document.createElement('div');
         listContainer.className = 'wp-list-container';
-        // Make the list focusable so keyboard users can Tab to the playlist and
-        // use the 1-9 track-select shortcuts without the player stealing them.
-        listContainer.tabIndex = 0;
 
         const list = document.createElement('ul');
         list.className = 'wp-list';
+        // Each track row is itself focusable (see makeActivatable below), so
+        // keyboard users can Tab to a row and use the 1-9 track-select shortcuts;
+        // the label gives screen-reader users context for the list of rows.
+        list.setAttribute('aria-label', 'Playlist');
 
         this.tracks.forEach((track, index) => {
             // Create track item
@@ -386,7 +404,9 @@ export class WaveformPlaylist {
                 const artwork = document.createElement('img');
                 artwork.className = 'wp-artwork';
                 artwork.src = track.artwork;
-                artwork.alt = track.title;
+                // Decorative: the row's own text already announces the title, so
+                // an empty alt avoids the screen reader reading it twice.
+                artwork.alt = '';
                 artworkContainer.appendChild(artwork);
 
                 // Add play/pause overlay if enabled
@@ -397,6 +417,7 @@ export class WaveformPlaylist {
 
                     const icon = document.createElement('i');
                     icon.className = 'ti ti-player-play';
+                    icon.setAttribute('aria-hidden', 'true'); // purely visual
                     overlay.appendChild(icon);
 
                     artworkContainer.appendChild(overlay);
@@ -407,6 +428,9 @@ export class WaveformPlaylist {
                 const indicator = document.createElement('span');
                 indicator.className = 'wp-indicator';
                 indicator.textContent = index + 1;
+                // The visible number duplicates the row's position; hide it from
+                // AT so the accessible name stays just the title/subtitle.
+                indicator.setAttribute('aria-hidden', 'true');
                 item.appendChild(indicator);
             }
 
@@ -436,8 +460,9 @@ export class WaveformPlaylist {
                 item.appendChild(duration);
             }
 
-            // Click handler - toggle play/pause for active track, select for others
-            item.addEventListener('click', () => {
+            // Keyboard-operable row: toggle play/pause on the active track,
+            // select any other track. Works with mouse, Enter and Space.
+            this.makeActivatable(item, () => {
                 if (index === this.currentTrackIndex) {
                     // Toggle play/pause on the active track
                     if (this.player && this.player.isPlaying) {
@@ -458,6 +483,7 @@ export class WaveformPlaylist {
                 const chapters = document.createElement('ul');
                 chapters.className = 'wp-chapters';
                 chapters.dataset.trackIndex = index;
+                chapters.setAttribute('aria-label', 'Chapters');
                 chapters.style.display = 'none'; // Hidden by default
 
                 track.chapters.forEach((chapter, chapterIndex) => {
@@ -476,8 +502,8 @@ export class WaveformPlaylist {
                     label.textContent = chapter.label;
                     chapterItem.appendChild(label);
 
-                    chapterItem.addEventListener('click', (e) => {
-                        e.stopPropagation();
+                    this.makeActivatable(chapterItem, (e) => {
+                        if (e) e.stopPropagation();
                         this.seekToChapter(index, chapter.time);
                     });
 
@@ -506,6 +532,8 @@ export class WaveformPlaylist {
             btn.className = 'wp-track-btn';
             btn.dataset.index = index;
             btn.textContent = track.title;
+            // Reflect which track is selected for assistive technology.
+            btn.setAttribute('aria-pressed', 'false');
 
             btn.addEventListener('click', () => this.selectTrack(index));
 
@@ -686,12 +714,21 @@ export class WaveformPlaylist {
         if (this.isMinimal) {
             // Minimal layout - update buttons
             this.listElement.querySelectorAll('.wp-track-btn').forEach((btn, i) => {
-                btn.classList.toggle('wp-active', i === index);
+                const isActive = i === index;
+                btn.classList.toggle('wp-active', isActive);
+                btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
             });
         } else if (this.tracks.length > 1) {
             // Track list - update items
             this.listElement.querySelectorAll('.wp-item').forEach((item, i) => {
-                item.classList.toggle('wp-active', i === index);
+                const isActive = i === index;
+                item.classList.toggle('wp-active', isActive);
+                // aria-current marks the playing track for screen-reader users.
+                if (isActive) {
+                    item.setAttribute('aria-current', 'true');
+                } else {
+                    item.removeAttribute('aria-current');
+                }
             });
         }
         // Single track with chapters doesn't need track highlighting
@@ -789,6 +826,31 @@ export class WaveformPlaylist {
         };
 
         document.addEventListener('keydown', this.keydownHandler);
+    }
+
+    /**
+     * Make a non-interactive element (e.g. an `<li>` row) behave like a button
+     * for keyboard and assistive-technology users: it exposes a `button` role,
+     * joins the tab order, and runs the same handler on Enter/Space as on click.
+     *
+     * Without this, the clickable track and chapter rows are mouse-only and
+     * invisible to keyboard and screen-reader users.
+     *
+     * @private
+     * @param {HTMLElement} el - Element to make activatable
+     * @param {Function} onActivate - Handler run on click / Enter / Space; receives the originating event
+     */
+    makeActivatable(el, onActivate) {
+        el.setAttribute('role', 'button');
+        el.tabIndex = 0;
+        el.addEventListener('click', onActivate);
+        el.addEventListener('keydown', (e) => {
+            // Enter and Space are the standard activation keys for buttons.
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault(); // stop Space from scrolling the page
+                onActivate(e);
+            }
+        });
     }
 
     /**

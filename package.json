@@ -23,6 +23,8 @@
     "LICENSE"
   ],
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build": "npm run build:js && npm run build:css",
     "build:js": "npm run build:iife && npm run build:esm && npm run build:min",
     "build:css": "cp src/css/waveform-playlist.css dist/ && esbuild src/css/waveform-playlist.css --minify --outfile=dist/waveform-playlist.min.css",
@@ -59,6 +61,8 @@
     "@arraypress/waveform-player": "^1.7.2"
   },
   "devDependencies": {
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "jsdom": "^29.1.1",
+    "vitest": "^4.1.9"
   }
 }

@@ -234,15 +234,30 @@ var WaveformPlaylist = class {
     this.currentChapterIndex = activeChapterIndex;
     if (this.tracks.length === 1 && track.chapters.length > 0) {
       this.listElement.querySelectorAll(".wp-chapter-item").forEach((item, i) => {
-        item.classList.toggle("wp-active", i === activeChapterIndex);
+        this.setChapterActive(item, i === activeChapterIndex);
       });
     } else if (this.tracks.length > 1 && this.options.expandChapters) {
       const chapters = this.listElement.querySelector(`.wp-chapters[data-track-index="${this.currentTrackIndex}"]`);
       if (chapters) {
         chapters.querySelectorAll(".wp-chapter").forEach((item, i) => {
-          item.classList.toggle("wp-active", i === activeChapterIndex);
+          this.setChapterActive(item, i === activeChapterIndex);
         });
       }
+    }
+  }
+  /**
+   * Toggle a chapter row's active styling and its `aria-current` state so the
+   * playing chapter is conveyed to assistive technology, not just visually.
+   * @private
+   * @param {HTMLElement} item - Chapter row element
+   * @param {boolean} isActive - Whether this chapter is the active one
+   */
+  setChapterActive(item, isActive) {
+    item.classList.toggle("wp-active", isActive);
+    if (isActive) {
+      item.setAttribute("aria-current", "true");
+    } else {
+      item.removeAttribute("aria-current");
     }
   }
   /**
@@ -255,6 +270,7 @@ var WaveformPlaylist = class {
     listContainer.className = "wp-list-container";
     const list = document.createElement("ul");
     list.className = "wp-list wp-chapters-only";
+    list.setAttribute("aria-label", "Chapters");
     track.chapters.forEach((chapter, index) => {
       const item = document.createElement("li");
       item.className = "wp-chapter-item";
@@ -268,7 +284,7 @@ var WaveformPlaylist = class {
       label.className = "wp-label";
       label.textContent = chapter.label;
       item.appendChild(label);
-      item.addEventListener("click", () => {
+      this.makeActivatable(item, () => {
         this.player.seekTo(chapter.time);
         if (!this.player.isPlaying) {
           this.player.play();
@@ -287,9 +303,9 @@ var WaveformPlaylist = class {
   createTrackList() {
     const listContainer = document.createElement("div");
     listContainer.className = "wp-list-container";
-    listContainer.tabIndex = 0;
     const list = document.createElement("ul");
     list.className = "wp-list";
+    list.setAttribute("aria-label", "Playlist");
     this.tracks.forEach((track, index) => {
       const item = document.createElement("li");
       item.className = "wp-item";
@@ -300,7 +316,7 @@ var WaveformPlaylist = class {
         const artwork = document.createElement("img");
         artwork.className = "wp-artwork";
         artwork.src = track.artwork;
-        artwork.alt = track.title;
+        artwork.alt = "";
         artworkContainer.appendChild(artwork);
         if (this.options.showPlayState) {
           const overlay = document.createElement("div");
@@ -308,6 +324,7 @@ var WaveformPlaylist = class {
           overlay.style.display = "none";
           const icon = document.createElement("i");
           icon.className = "ti ti-player-play";
+          icon.setAttribute("aria-hidden", "true");
           overlay.appendChild(icon);
           artworkContainer.appendChild(overlay);
         }
@@ -316,6 +333,7 @@ var WaveformPlaylist = class {
         const indicator = document.createElement("span");
         indicator.className = "wp-indicator";
         indicator.textContent = index + 1;
+        indicator.setAttribute("aria-hidden", "true");
         item.appendChild(indicator);
       }
       const info = document.createElement("div");
@@ -337,7 +355,7 @@ var WaveformPlaylist = class {
         duration.textContent = track.duration;
         item.appendChild(duration);
       }
-      item.addEventListener("click", () => {
+      this.makeActivatable(item, () => {
         if (index === this.currentTrackIndex) {
           if (this.player && this.player.isPlaying) {
             this.player.pause();
@@ -353,6 +371,7 @@ var WaveformPlaylist = class {
         const chapters = document.createElement("ul");
         chapters.className = "wp-chapters";
         chapters.dataset.trackIndex = index;
+        chapters.setAttribute("aria-label", "Chapters");
         chapters.style.display = "none";
         track.chapters.forEach((chapter, chapterIndex) => {
           const chapterItem = document.createElement("li");
@@ -367,8 +386,8 @@ var WaveformPlaylist = class {
           label.className = "wp-chapter-label";
           label.textContent = chapter.label;
           chapterItem.appendChild(label);
-          chapterItem.addEventListener("click", (e) => {
-            e.stopPropagation();
+          this.makeActivatable(chapterItem, (e) => {
+            if (e) e.stopPropagation();
             this.seekToChapter(index, chapter.time);
           });
           chapters.appendChild(chapterItem);
@@ -392,6 +411,7 @@ var WaveformPlaylist = class {
       btn.className = "wp-track-btn";
       btn.dataset.index = index;
       btn.textContent = track.title;
+      btn.setAttribute("aria-pressed", "false");
       btn.addEventListener("click", () => this.selectTrack(index));
       controls.appendChild(btn);
     });
@@ -530,11 +550,19 @@ var WaveformPlaylist = class {
   setActiveTrack(index) {
     if (this.isMinimal) {
       this.listElement.querySelectorAll(".wp-track-btn").forEach((btn, i) => {
-        btn.classList.toggle("wp-active", i === index);
+        const isActive = i === index;
+        btn.classList.toggle("wp-active", isActive);
+        btn.setAttribute("aria-pressed", isActive ? "true" : "false");
       });
     } else if (this.tracks.length > 1) {
       this.listElement.querySelectorAll(".wp-item").forEach((item, i) => {
-        item.classList.toggle("wp-active", i === index);
+        const isActive = i === index;
+        item.classList.toggle("wp-active", isActive);
+        if (isActive) {
+          item.setAttribute("aria-current", "true");
+        } else {
+          item.removeAttribute("aria-current");
+        }
       });
     }
   }
@@ -602,6 +630,29 @@ var WaveformPlaylist = class {
       }
     };
     document.addEventListener("keydown", this.keydownHandler);
+  }
+  /**
+   * Make a non-interactive element (e.g. an `<li>` row) behave like a button
+   * for keyboard and assistive-technology users: it exposes a `button` role,
+   * joins the tab order, and runs the same handler on Enter/Space as on click.
+   *
+   * Without this, the clickable track and chapter rows are mouse-only and
+   * invisible to keyboard and screen-reader users.
+   *
+   * @private
+   * @param {HTMLElement} el - Element to make activatable
+   * @param {Function} onActivate - Handler run on click / Enter / Space; receives the originating event
+   */
+  makeActivatable(el, onActivate) {
+    el.setAttribute("role", "button");
+    el.tabIndex = 0;
+    el.addEventListener("click", onActivate);
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        onActivate(e);
+      }
+    });
   }
   /**
    * Parse time string to seconds
