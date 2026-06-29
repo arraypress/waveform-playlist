@@ -29,6 +29,8 @@ var WaveformPlaylist = class {
     this.player = null;
     this.listElement = null;
     this.isMinimal = this.options.layout === "minimal";
+    this.isHero = this.options.layout === "hero";
+    this.isGrid = this.options.layout === "grid";
     this.isPlaying = false;
     this.keydownHandler = null;
     this.parseTracks();
@@ -53,6 +55,12 @@ var WaveformPlaylist = class {
     options.expandChapters = container.dataset.expandChapters !== "false";
     options.showDuration = container.dataset.showDuration !== "false";
     options.showPlayState = container.dataset.showPlayState !== "false";
+    options.showSubtitle = options.showSubtitle !== false && container.dataset.showSubtitle !== "false";
+    options.coverSize = parseInt(container.dataset.coverSize, 10) || options.coverSize || null;
+    options.thumbnailSize = parseInt(container.dataset.thumbnailSize, 10) || options.thumbnailSize || null;
+    options.density = container.dataset.density || options.density || "comfortable";
+    options.coverPosition = container.dataset.coverPosition || options.coverPosition || "left";
+    options.barPosition = container.dataset.barPosition || options.barPosition || "bottom";
     if (container.dataset.showChapterMarkers !== void 0) {
       options.showChapterMarkers = container.dataset.showChapterMarkers === "true";
     } else {
@@ -191,24 +199,314 @@ var WaveformPlaylist = class {
     if (this.isMinimal) {
       this.container.classList.add("wp-minimal");
     }
+    if (this.isHero || this.isGrid) {
+      this.container.classList.add("wp-hero-layout");
+    }
+    if (this.isGrid) {
+      this.container.classList.add("wp-grid-layout");
+    }
+    if ((this.isHero || this.isGrid) && this.options.density === "compact") {
+      this.container.classList.add("wp-density-compact");
+    }
+    if ((this.isHero || this.isGrid) && this.options.coverPosition === "top") {
+      this.container.classList.add("wp-cover-top");
+    }
     this.tracks.forEach((track) => {
       if (track.element) {
         track.element.style.display = "none";
       }
     });
     const playerContainer = document.createElement("div");
-    playerContainer.className = "wp-player";
+    playerContainer.className = this.isHero || this.isGrid ? "wp-hero-stage" : "wp-player";
     playerContainer.id = "wp-player-" + this.generateId();
-    this.container.appendChild(playerContainer);
-    if (this.tracks.length === 1 && this.tracks[0].chapters.length > 0) {
-      this.createChapterList();
-    } else if (this.isMinimal) {
-      this.createMinimalControls();
+    if (this.isGrid && !(this.tracks.length === 1 && this.tracks[0].chapters.length > 0)) {
+      if (this.options.barPosition === "top") {
+        this.createNowPlayingBar(playerContainer);
+        this.createHeroGrid();
+      } else {
+        this.createHeroGrid();
+        this.createNowPlayingBar(playerContainer);
+      }
+    } else if (this.isHero || this.isGrid) {
+      this.createHeroLayout(playerContainer);
+      if (this.tracks.length === 1 && this.tracks[0].chapters.length > 0) {
+        this.createChapterList();
+      } else {
+        this.createHeroQueue();
+      }
     } else {
-      this.createTrackList();
+      this.container.appendChild(playerContainer);
+      if (this.tracks.length === 1 && this.tracks[0].chapters.length > 0) {
+        this.createChapterList();
+      } else if (this.isMinimal) {
+        this.createMinimalControls();
+      } else {
+        this.createTrackList();
+      }
     }
     this.initPlayer(playerContainer);
     this.bindKeyboard();
+  }
+  /**
+   * Build the hero "now playing" unit: a cover that doubles as the play/pause
+   * button, immediately left of the waveform stage, with a current/total time
+   * readout beneath the waveform.
+   * @private
+   * @param {HTMLElement} stage - The container the WaveformPlayer renders into.
+   */
+  createHeroLayout(stage) {
+    const first = this.tracks[0];
+    const hero = document.createElement("div");
+    hero.className = "wp-hero";
+    const coverSize = (this.options.coverSize || (this.options.height || 56) + 36) + "px";
+    const cover = document.createElement("button");
+    cover.type = "button";
+    cover.className = "wp-hero-cover";
+    cover.style.width = coverSize;
+    cover.style.height = coverSize;
+    cover.setAttribute("aria-label", "Play");
+    if (first.artwork) {
+      const img = document.createElement("img");
+      img.className = "wp-hero-art";
+      img.alt = "";
+      img.src = first.artwork;
+      cover.appendChild(img);
+      this.heroArt = img;
+    }
+    const overlay = document.createElement("span");
+    overlay.className = "wp-hero-overlay";
+    const icon = document.createElement("i");
+    icon.className = "ti ti-player-play";
+    icon.setAttribute("aria-hidden", "true");
+    overlay.appendChild(icon);
+    cover.appendChild(overlay);
+    cover.addEventListener("click", () => this.togglePlay());
+    this.heroCover = cover;
+    this.heroIcon = icon;
+    hero.appendChild(cover);
+    const main = document.createElement("div");
+    main.className = "wp-hero-main";
+    main.appendChild(stage);
+    const meta = document.createElement("div");
+    meta.className = "wp-hero-meta";
+    const titles = document.createElement("div");
+    titles.className = "wp-hero-titles";
+    const titleEl = document.createElement("span");
+    titleEl.className = "wp-hero-title";
+    titleEl.textContent = first.title || "";
+    titles.appendChild(titleEl);
+    this.heroTitle = titleEl;
+    if (this.options.showSubtitle) {
+      const subEl = document.createElement("span");
+      subEl.className = "wp-hero-sub";
+      subEl.textContent = first.subtitle || "";
+      titles.appendChild(subEl);
+      this.heroSub = subEl;
+    }
+    meta.appendChild(titles);
+    const time = document.createElement("div");
+    time.className = "wp-hero-time";
+    time.textContent = "0:00 / " + (first.duration || "0:00");
+    this.heroTime = time;
+    meta.appendChild(time);
+    main.appendChild(meta);
+    hero.appendChild(main);
+    this.container.appendChild(hero);
+  }
+  /**
+   * Build the slim "now playing" transport bar for the grid layout: a small
+   * cover (play/pause) + title + waveform + time, in one row below the
+   * cover-art grid. Shares the hero* refs so updatePlayState / setActiveTrack
+   * / updateHeroTime drive it just like the hero.
+   * @private
+   * @param {HTMLElement} stage - The container the WaveformPlayer renders into.
+   */
+  createNowPlayingBar(stage) {
+    const first = this.tracks[0];
+    const bar = document.createElement("div");
+    bar.className = "wp-now-bar";
+    bar.appendChild(stage);
+    const meta = document.createElement("div");
+    meta.className = "wp-now-meta";
+    const titles = document.createElement("div");
+    titles.className = "wp-now-titles";
+    const titleEl = document.createElement("span");
+    titleEl.className = "wp-hero-title";
+    titleEl.textContent = first.title || "";
+    titles.appendChild(titleEl);
+    this.heroTitle = titleEl;
+    if (this.options.showSubtitle) {
+      const subEl = document.createElement("span");
+      subEl.className = "wp-hero-sub";
+      subEl.textContent = first.subtitle || "";
+      titles.appendChild(subEl);
+      this.heroSub = subEl;
+    }
+    meta.appendChild(titles);
+    const time = document.createElement("div");
+    time.className = "wp-hero-time";
+    time.textContent = "0:00 / " + (first.duration || "0:00");
+    this.heroTime = time;
+    meta.appendChild(time);
+    bar.appendChild(meta);
+    if (this.options.barPosition === "top") bar.classList.add("wp-now-bar-top");
+    this.container.appendChild(bar);
+  }
+  /**
+   * Build the stripped queue beneath the hero: numbered rows of title +
+   * duration only (no covers, no waveform, no subtitle), with the active row
+   * marked. Reuses the `.wp-item` / `wp-active` machinery the rest of the
+   * component already drives.
+   * @private
+   */
+  createHeroQueue() {
+    const listContainer = document.createElement("div");
+    listContainer.className = "wp-list-container wp-queue";
+    if (this.options.thumbnailSize) {
+      listContainer.style.setProperty("--wp-thumb-size", this.options.thumbnailSize + "px");
+    }
+    const list = document.createElement("ul");
+    list.className = "wp-list";
+    this.tracks.forEach((track, index) => {
+      const item = document.createElement("li");
+      item.className = "wp-item wp-queue-item";
+      item.dataset.index = index;
+      if (track.artwork) {
+        const thumb = document.createElement("div");
+        thumb.className = "wp-queue-thumb";
+        const img = document.createElement("img");
+        img.className = "wp-queue-thumb-art";
+        img.src = track.artwork;
+        img.alt = "";
+        thumb.appendChild(img);
+        const overlay = document.createElement("span");
+        overlay.className = "wp-queue-ov";
+        const ic = document.createElement("i");
+        ic.className = "wp-queue-state ti ti-player-play";
+        ic.setAttribute("aria-hidden", "true");
+        overlay.appendChild(ic);
+        thumb.appendChild(overlay);
+        item.appendChild(thumb);
+      } else {
+        const num = document.createElement("span");
+        num.className = "wp-num";
+        num.setAttribute("aria-hidden", "true");
+        num.textContent = index + 1;
+        item.appendChild(num);
+        const ic = document.createElement("i");
+        ic.className = "wp-queue-state wp-queue-state-num ti ti-player-play";
+        ic.setAttribute("aria-hidden", "true");
+        item.appendChild(ic);
+      }
+      const info = document.createElement("div");
+      info.className = "wp-info";
+      const title = document.createElement("div");
+      title.className = "wp-title";
+      title.textContent = track.title;
+      info.appendChild(title);
+      item.appendChild(info);
+      if (this.options.showDuration && track.duration) {
+        const duration = document.createElement("span");
+        duration.className = "wp-duration";
+        duration.textContent = track.duration;
+        item.appendChild(duration);
+      }
+      this.makeActivatable(item, () => {
+        if (index === this.currentTrackIndex) {
+          this.togglePlay();
+        } else {
+          this.selectTrack(index);
+        }
+      });
+      list.appendChild(item);
+      const sub = this.buildChapterSublist(track, index);
+      if (sub) list.appendChild(sub);
+    });
+    listContainer.appendChild(list);
+    this.container.appendChild(listContainer);
+    this.listElement = list;
+  }
+  /**
+   * Build the cover-art grid beneath the hero (layout="grid"). Each card is a
+   * cover with a play/pause overlay + a title; clicking it plays from the
+   * start. Reuses the active-track (.wp-item / wp-active) and play-state
+   * (.wp-queue-state) machinery the hero already drives.
+   * @private
+   */
+  createHeroGrid() {
+    const gridContainer = document.createElement("div");
+    gridContainer.className = "wp-grid";
+    if (this.options.thumbnailSize) {
+      gridContainer.style.setProperty("--wp-grid-cover", this.options.thumbnailSize + "px");
+    }
+    this.tracks.forEach((track, index) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "wp-item wp-grid-item";
+      card.dataset.index = index;
+      const cover = document.createElement("span");
+      cover.className = "wp-grid-cover";
+      if (track.artwork) {
+        const img = document.createElement("img");
+        img.className = "wp-grid-art";
+        img.src = track.artwork;
+        img.alt = "";
+        cover.appendChild(img);
+      } else {
+        const num = document.createElement("span");
+        num.className = "wp-grid-num";
+        num.setAttribute("aria-hidden", "true");
+        num.textContent = index + 1;
+        cover.appendChild(num);
+      }
+      const overlay = document.createElement("span");
+      overlay.className = "wp-grid-ov";
+      const ic = document.createElement("i");
+      ic.className = "wp-queue-state ti ti-player-play";
+      ic.setAttribute("aria-hidden", "true");
+      overlay.appendChild(ic);
+      cover.appendChild(overlay);
+      card.appendChild(cover);
+      const title = document.createElement("span");
+      title.className = "wp-grid-title";
+      title.textContent = track.title;
+      card.appendChild(title);
+      card.addEventListener("click", () => {
+        if (index === this.currentTrackIndex) {
+          this.togglePlay();
+        } else {
+          this.selectTrack(index);
+        }
+      });
+      gridContainer.appendChild(card);
+    });
+    this.container.appendChild(gridContainer);
+    this.listElement = gridContainer;
+  }
+  /**
+   * Toggle play/pause on the active track (the hero cover + active queue row).
+   * @private
+   */
+  togglePlay() {
+    if (!this.player) return;
+    const audio = this.player.audio;
+    const playing = audio ? !audio.paused : !!this.player.isPlaying;
+    if (playing) {
+      this.player.pause();
+    } else {
+      this.player.play();
+    }
+  }
+  /**
+   * Update the hero time readout from real playback values.
+   * @private
+   * @param {number} current
+   * @param {number} total
+   */
+  updateHeroTime(current, total) {
+    if (!this.heroTime) return;
+    const totalStr = total && isFinite(total) ? this.formatTime(total) : this.tracks[this.currentTrackIndex] && this.tracks[this.currentTrackIndex].duration || "0:00";
+    this.heroTime.textContent = this.formatTime(current) + "\u2009/\u2009" + totalStr;
   }
   /**
    * Initialize the WaveformPlayer instance with first track
@@ -236,8 +534,15 @@ var WaveformPlaylist = class {
       artwork: firstTrack.artwork,
       album: firstTrack.album,
       markers,
+      // Hero layout drives a waveform-ONLY player: the cover (with its
+      // play/pause overlay), the time readout and the queue are this
+      // component's own chrome, so suppress the player's button + info row.
+      ...this.isHero || this.isGrid ? { showControls: false, showInfo: false } : {},
       onEnd: () => this.onTrackEnd(),
-      onTimeUpdate: (current, total) => this.updateActiveChapter(current),
+      onTimeUpdate: (current, total) => {
+        this.updateActiveChapter(current);
+        if (this.isHero || this.isGrid) this.updateHeroTime(current, total);
+      },
       onPlay: () => {
         this.isPlaying = true;
         this.setActiveTrack(this.currentTrackIndex);
@@ -265,6 +570,25 @@ var WaveformPlaylist = class {
    * @private
    */
   updatePlayState() {
+    if (this.isHero || this.isGrid) {
+      const playing = this.isPlaying;
+      if (this.heroIcon) {
+        this.heroIcon.className = playing ? "ti ti-player-pause" : "ti ti-player-play";
+      }
+      if (this.heroCover) {
+        this.heroCover.setAttribute("aria-label", playing ? "Pause" : "Play");
+      }
+      if (this.listElement) {
+        this.listElement.querySelectorAll(".wp-queue-state").forEach((ic) => {
+          const item = ic.closest("[data-index]");
+          const i = item ? Number(item.dataset.index) : -1;
+          const isActivePlaying = playing && i === this.currentTrackIndex;
+          ic.classList.toggle("ti-player-pause", isActivePlaying);
+          ic.classList.toggle("ti-player-play", !isActivePlaying);
+        });
+      }
+      return;
+    }
     if (!this.options.showPlayState) return;
     this.listElement.querySelectorAll(".wp-artwork-container").forEach((container, i) => {
       const isActive = i === this.currentTrackIndex;
@@ -360,6 +684,44 @@ var WaveformPlaylist = class {
     this.listElement = list;
   }
   /**
+   * Build the expandable `.wp-chapters` sublist for a track (shared by the
+   * track list and the hero queue). Returns null when the track has no
+   * chapters or `expandChapters` is off. Hidden by default; shown for the
+   * active track by setActiveTrack/selectTrack.
+   * @private
+   * @param {Object} track
+   * @param {number} index
+   * @returns {HTMLElement|null}
+   */
+  buildChapterSublist(track, index) {
+    if (!(track.chapters.length > 0 && this.options.expandChapters)) return null;
+    const chapters = document.createElement("ul");
+    chapters.className = "wp-chapters";
+    chapters.dataset.trackIndex = index;
+    chapters.setAttribute("aria-label", "Chapters");
+    chapters.style.display = "none";
+    track.chapters.forEach((chapter, chapterIndex) => {
+      const chapterItem = document.createElement("li");
+      chapterItem.className = "wp-chapter";
+      chapterItem.dataset.time = chapter.time;
+      chapterItem.dataset.index = chapterIndex;
+      const time = document.createElement("span");
+      time.className = "wp-chapter-time";
+      time.textContent = this.formatTime(chapter.time);
+      chapterItem.appendChild(time);
+      const label = document.createElement("span");
+      label.className = "wp-chapter-label";
+      label.textContent = chapter.label;
+      chapterItem.appendChild(label);
+      this.makeActivatable(chapterItem, (e) => {
+        if (e) e.stopPropagation();
+        this.seekToChapter(index, chapter.time);
+      });
+      chapters.appendChild(chapterItem);
+    });
+    return chapters;
+  }
+  /**
    * Create track list UI for multiple tracks
    * @private
    */
@@ -430,33 +792,8 @@ var WaveformPlaylist = class {
         }
       });
       list.appendChild(item);
-      if (track.chapters.length > 0 && this.options.expandChapters) {
-        const chapters = document.createElement("ul");
-        chapters.className = "wp-chapters";
-        chapters.dataset.trackIndex = index;
-        chapters.setAttribute("aria-label", "Chapters");
-        chapters.style.display = "none";
-        track.chapters.forEach((chapter, chapterIndex) => {
-          const chapterItem = document.createElement("li");
-          chapterItem.className = "wp-chapter";
-          chapterItem.dataset.time = chapter.time;
-          chapterItem.dataset.index = chapterIndex;
-          const time = document.createElement("span");
-          time.className = "wp-chapter-time";
-          time.textContent = this.formatTime(chapter.time);
-          chapterItem.appendChild(time);
-          const label = document.createElement("span");
-          label.className = "wp-chapter-label";
-          label.textContent = chapter.label;
-          chapterItem.appendChild(label);
-          this.makeActivatable(chapterItem, (e) => {
-            if (e) e.stopPropagation();
-            this.seekToChapter(index, chapter.time);
-          });
-          chapters.appendChild(chapterItem);
-        });
-        list.appendChild(chapters);
-      }
+      const sub = this.buildChapterSublist(track, index);
+      if (sub) list.appendChild(sub);
     });
     listContainer.appendChild(list);
     this.container.appendChild(listContainer);
@@ -617,7 +954,7 @@ var WaveformPlaylist = class {
         btn.classList.toggle("wp-active", isActive);
         btn.setAttribute("aria-pressed", isActive ? "true" : "false");
       });
-    } else if (this.tracks.length > 1) {
+    } else if (this.tracks.length > 1 || this.isGrid) {
       this.listElement.querySelectorAll(".wp-item").forEach((item, i) => {
         const isActive = i === index;
         item.classList.toggle("wp-active", isActive);
@@ -627,6 +964,23 @@ var WaveformPlaylist = class {
           item.removeAttribute("aria-current");
         }
       });
+    }
+    if ((this.isHero || this.isGrid) && this.tracks[index]) {
+      const t = this.tracks[index];
+      if (this.heroArt && t.artwork) {
+        this.heroArt.src = t.artwork;
+      }
+      if (this.heroTitle) this.heroTitle.textContent = t.title || "";
+      if (this.heroSub) this.heroSub.textContent = t.subtitle || "";
+      if (this.heroTime && index !== this._heroTimeIndex) {
+        this.heroTime.textContent = "0:00 / " + (t.duration || "0:00");
+        this._heroTimeIndex = index;
+      }
+      if (this.options.expandChapters && this.tracks.length > 1 && this.listElement) {
+        this.listElement.querySelectorAll(".wp-chapters").forEach((ch) => {
+          ch.style.display = Number(ch.dataset.trackIndex) === index ? "block" : "none";
+        });
+      }
     }
   }
   /**
