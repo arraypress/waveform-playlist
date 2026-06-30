@@ -39,7 +39,7 @@
 
 /* List Container */
 .wp-list-container {
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, currentColor 11%, transparent);
     border-radius: 8px;
     overflow: hidden;
 }
@@ -59,13 +59,13 @@
     align-items: center;
     gap: 1rem;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid color-mix(in srgb, currentColor 9%, transparent);
     cursor: pointer;
     transition: background-color 0.2s;
 }
 
 .wp-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, currentColor 6%, transparent);
 }
 
 .wp-item.wp-active {
@@ -85,12 +85,12 @@
     justify-content: center;
     font-size: 0.875rem;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, currentColor 6%, transparent);
     flex-shrink: 0;
 }
 
 .wp-item.wp-active .wp-indicator {
-    background: color-mix(in srgb, currentColor 20%, transparent);
+    background: color-mix(in srgb, currentColor 14%, transparent);
     color: currentColor;
 }
 
@@ -167,9 +167,9 @@
     list-style: none;
     margin: 0;
     padding: 0.35rem 0 0.6rem 3.25rem;
-    background: rgba(0, 0, 0, 0.28);
+    background: color-mix(in srgb, currentColor 5%, transparent);
     box-shadow: inset 3px 0 0 color-mix(in srgb, currentColor 55%, transparent);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid color-mix(in srgb, currentColor 9%, transparent);
 }
 
 .wp-chapter {
@@ -184,7 +184,7 @@
 }
 
 .wp-chapter:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, currentColor 6%, transparent);
 }
 
 .wp-chapter.wp-active {
@@ -213,13 +213,13 @@
     align-items: center;
     gap: 1rem;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid color-mix(in srgb, currentColor 6%, transparent);
     cursor: pointer;
     transition: background-color 0.2s;
 }
 
 .wp-chapters-only .wp-chapter-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, currentColor 6%, transparent);
 }
 
 .wp-chapters-only .wp-chapter-item.wp-active {
@@ -258,8 +258,8 @@
 
 .wp-track-btn {
     padding: 0.5rem 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, currentColor 6%, transparent);
+    border: 1px solid color-mix(in srgb, currentColor 11%, transparent);
     border-radius: 20px;
     color: inherit;
     font-size: 0.875rem;
@@ -268,12 +268,12 @@
 }
 
 .wp-track-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, currentColor 9%, transparent);
+    border-color: color-mix(in srgb, currentColor 22%, transparent);
 }
 
 .wp-track-btn.wp-active {
-    background: color-mix(in srgb, currentColor 20%, transparent);
+    background: color-mix(in srgb, currentColor 14%, transparent);
     border-color: color-mix(in srgb, currentColor 50%, transparent);
     color: currentColor;
 }
@@ -333,11 +333,11 @@
     position: relative;
     flex: 0 0 auto;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, currentColor 11%, transparent);
     border-radius: 8px;
     overflow: hidden;
     cursor: pointer;
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, currentColor 7%, transparent);
     color: inherit;
 }
 
@@ -453,7 +453,7 @@
     height: var(--wp-thumb-size, 36px);
     border-radius: 6px;
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, currentColor 7%, transparent);
 }
 
 .wp-queue-thumb-art {
@@ -596,8 +596,8 @@
     aspect-ratio: 1 / 1;
     border-radius: 8px;
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, currentColor 7%, transparent);
+    border: 1px solid color-mix(in srgb, currentColor 11%, transparent);
 }
 
 .wp-grid-art {
@@ -672,9 +672,9 @@
     gap: 0.45rem;
     margin-top: 1rem;
     padding: 0.6rem 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, currentColor 11%, transparent);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.03);
+    background: color-mix(in srgb, currentColor 4%, transparent);
 }
 
 .wp-now-bar-top {

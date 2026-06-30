@@ -4,6 +4,18 @@ All notable changes to `@arraypress/waveform-playlist` are documented here. The
 format is based on [Keep a Changelog](https://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Light-mode rendering.** The list / hero / grid surfaces built their hover,
+  active-row and chapter-panel highlights from fixed `rgba(255,255,255,…)` and
+  `rgba(0,0,0,…)` overlays that assumed a dark background — so on a light page
+  the chapter panel and active states rendered as muddy grey slabs. Those
+  page-surface overlays are now `color-mix(in srgb, currentColor …, transparent)`,
+  which adapts to the surrounding text colour (near-identical on dark, correct on
+  light). Artwork play-overlays stay dark — they sit over cover images.
+
 ## [1.4.0] — 2026-06-30
 
 ### Added
