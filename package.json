@@ -28,10 +28,10 @@
     "build": "npm run build:js && npm run build:css",
     "build:js": "npm run build:iife && npm run build:esm && npm run build:min",
     "build:css": "cp src/css/waveform-playlist.css dist/ && esbuild src/css/waveform-playlist.css --minify --outfile=dist/waveform-playlist.min.css",
-    "build:iife": "esbuild src/js/index.js --bundle --format=iife --global-name=WaveformPlaylist --outfile=dist/waveform-playlist.js",
+    "build:iife": "esbuild src/js/index.js --bundle --format=iife --outfile=dist/waveform-playlist.js",
     "build:esm": "esbuild src/js/index.js --bundle --format=esm --outfile=dist/waveform-playlist.esm.js",
-    "build:min": "esbuild src/js/index.js --bundle --format=iife --global-name=WaveformPlaylist --minify --outfile=dist/waveform-playlist.min.js",
-    "dev": "esbuild src/js/index.js --bundle --format=iife --global-name=WaveformPlaylist --outfile=dist/waveform-playlist.js --watch",
+    "build:min": "esbuild src/js/index.js --bundle --format=iife --minify --outfile=dist/waveform-playlist.min.js",
+    "dev": "esbuild src/js/index.js --bundle --format=iife --outfile=dist/waveform-playlist.js --watch",
     "serve": "npx http-server -p 8000",
     "size": "npm run build && echo 'JS:' && gzip -c dist/waveform-playlist.min.js | wc -c && echo 'CSS:' && gzip -c dist/waveform-playlist.min.css | wc -c",
     "prepublishOnly": "npm run build"

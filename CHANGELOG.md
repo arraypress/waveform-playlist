@@ -6,7 +6,28 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Artwork fallback.** Track artwork that fails to load (404 / broken) now
+  shows a muted music-note placeholder in the hero cover, queue thumbnails and
+  grid cards instead of the browser's broken-image icon.
+
 ### Fixed
+
+- **`density` and `showSubtitle` now apply to the list / minimal layouts**, not
+  only hero / grid. `density: 'compact'` tightens list rows (the compact CSS
+  already covered `.wp-item`; the class just wasn't being added for list), and
+  `showSubtitle: false` hides the now-playing and per-row subtitles. Also gave
+  the list-layout now-playing header a little more bottom margin.
+- **`new WaveformPlaylist(...)` from the IIFE/CDN build.** The browser bundle was
+  built with esbuild `--global-name=WaveformPlaylist`, which wrapped the exports
+  so `window.WaveformPlaylist` resolved to the ES-module *namespace*
+  (`{ default, WaveformPlaylist }`) rather than the class — so manual
+  construction (`new WaveformPlaylist('#el', { ... })`, as the docs show) threw
+  "not a constructor". Dropped `--global-name` so the bundle's own
+  `window.WaveformPlaylist = WaveformPlaylist` (the class, with its static
+  `init`) stands, matching `@arraypress/waveform-player`. Auto-init and
+  `WaveformPlaylist.init()` are unaffected.
 
 - **Light-mode rendering.** The list / hero / grid surfaces built their hover,
   active-row and chapter-panel highlights from fixed `rgba(255,255,255,…)` and

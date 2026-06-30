@@ -1,4 +1,12 @@
 // src/js/index.js
+var ARTWORK_FALLBACK = "data:image/svg+xml," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="4" fill="#71717a" fill-opacity="0.15"/><g fill="none" stroke="#a1a1aa" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="17" r="2.2"/><circle cx="17" cy="15" r="2.2"/><path d="M10.2 17V7l9-1.6v9"/></g></svg>'
+);
+function applyArtFallback(img) {
+  img.addEventListener("error", () => {
+    if (!img.src.startsWith("data:")) img.src = ARTWORK_FALLBACK;
+  });
+}
 var WaveformPlaylist = class {
   /**
    * Create a new WaveformPlaylist instance
@@ -205,11 +213,14 @@ var WaveformPlaylist = class {
     if (this.isGrid) {
       this.container.classList.add("wp-grid-layout");
     }
-    if ((this.isHero || this.isGrid) && this.options.density === "compact") {
+    if (this.options.density === "compact") {
       this.container.classList.add("wp-density-compact");
     }
     if ((this.isHero || this.isGrid) && this.options.coverPosition === "top") {
       this.container.classList.add("wp-cover-top");
+    }
+    if (!this.options.showSubtitle) {
+      this.container.classList.add("wp-no-subtitle");
     }
     this.tracks.forEach((track) => {
       if (track.element) {
@@ -270,6 +281,7 @@ var WaveformPlaylist = class {
       img.className = "wp-hero-art";
       img.alt = "";
       img.src = first.artwork;
+      applyArtFallback(img);
       cover.appendChild(img);
       this.heroArt = img;
     }
@@ -378,6 +390,7 @@ var WaveformPlaylist = class {
         img.className = "wp-queue-thumb-art";
         img.src = track.artwork;
         img.alt = "";
+        applyArtFallback(img);
         thumb.appendChild(img);
         const overlay = document.createElement("span");
         overlay.className = "wp-queue-ov";
@@ -451,6 +464,7 @@ var WaveformPlaylist = class {
         img.className = "wp-grid-art";
         img.src = track.artwork;
         img.alt = "";
+        applyArtFallback(img);
         cover.appendChild(img);
       } else {
         const num = document.createElement("span");
@@ -741,6 +755,7 @@ var WaveformPlaylist = class {
         const artwork = document.createElement("img");
         artwork.className = "wp-artwork";
         artwork.src = track.artwork;
+        applyArtFallback(artwork);
         artwork.alt = "";
         artworkContainer.appendChild(artwork);
         if (this.options.showPlayState) {

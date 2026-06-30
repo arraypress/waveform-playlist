@@ -30,6 +30,19 @@
     padding: 0 calc(1rem + 1px);
 }
 
+/* Breathing room under the now-playing meta (title/subtitle/time) before the
+   track list — the player's info row has no bottom margin of its own. */
+.wp-player .waveform-info {
+    margin-bottom: 1rem;
+}
+
+/* `showSubtitle: false` — hide the now-playing + per-row subtitles. (Hero/grid
+   skip rendering the element; list/minimal hide it here.) */
+.wp-no-subtitle .wp-subtitle,
+.wp-no-subtitle .waveform-subtitle {
+    display: none;
+}
+
 /* Match the track-row gap (1rem) so the header's title/time fall into the same
    columns as the list — the player's own info row defaults to a tighter gap. */
 .wp-player .waveform-track,

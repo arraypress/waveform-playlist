@@ -8,6 +8,22 @@
  */
 
 /**
+ * Placeholder shown when a track's artwork URL fails to load (404 / broken) — a
+ * muted music-note tile instead of the browser's broken-image icon. Inline SVG
+ * data-URI (no font / network needed).
+ */
+const ARTWORK_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="4" fill="#71717a" fill-opacity="0.15"/><g fill="none" stroke="#a1a1aa" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="17" r="2.2"/><circle cx="17" cy="15" r="2.2"/><path d="M10.2 17V7l9-1.6v9"/></g></svg>'
+);
+
+/** Swap a broken artwork `<img>` for the placeholder tile on load failure. */
+function applyArtFallback(img) {
+    img.addEventListener('error', () => {
+        if (!img.src.startsWith('data:')) img.src = ARTWORK_FALLBACK;
+    });
+}
+
+/**
  * WaveformPlaylist Class
  * Adds playlist and chapter navigation capabilities to WaveformPlayer
  *
@@ -240,11 +256,19 @@ export class WaveformPlaylist {
         if (this.isGrid) {
             this.container.classList.add('wp-grid-layout');
         }
-        if ((this.isHero || this.isGrid) && this.options.density === 'compact') {
+        // Density applies to every layout (the compact CSS covers list rows,
+        // queue rows, grid cards and chapters alike).
+        if (this.options.density === 'compact') {
             this.container.classList.add('wp-density-compact');
         }
         if ((this.isHero || this.isGrid) && this.options.coverPosition === 'top') {
             this.container.classList.add('wp-cover-top');
+        }
+        // `showSubtitle` also applies to the list/minimal layouts: hero/grid skip
+        // rendering the subtitle element, while list relies on this class to hide
+        // the now-playing + per-row subtitles via CSS.
+        if (!this.options.showSubtitle) {
+            this.container.classList.add('wp-no-subtitle');
         }
 
         // Hide original track elements
@@ -339,6 +363,7 @@ export class WaveformPlaylist {
             img.className = 'wp-hero-art';
             img.alt = '';
             img.src = first.artwork;
+            applyArtFallback(img);
             cover.appendChild(img);
             this.heroArt = img;
         }
@@ -479,6 +504,7 @@ export class WaveformPlaylist {
                 img.className = 'wp-queue-thumb-art';
                 img.src = track.artwork;
                 img.alt = '';
+                applyArtFallback(img);
                 thumb.appendChild(img);
                 const overlay = document.createElement('span');
                 overlay.className = 'wp-queue-ov';
@@ -565,6 +591,7 @@ export class WaveformPlaylist {
                 img.className = 'wp-grid-art';
                 img.src = track.artwork;
                 img.alt = '';
+                applyArtFallback(img);
                 cover.appendChild(img);
             } else {
                 // No artwork: a centered track number stands in for the cover.
@@ -928,6 +955,7 @@ export class WaveformPlaylist {
                 const artwork = document.createElement('img');
                 artwork.className = 'wp-artwork';
                 artwork.src = track.artwork;
+                applyArtFallback(artwork);
                 // Decorative: the row's own text already announces the title, so
                 // an empty alt avoids the screen reader reading it twice.
                 artwork.alt = '';

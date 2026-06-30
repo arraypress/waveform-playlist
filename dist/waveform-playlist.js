@@ -1,28 +1,13 @@
-var WaveformPlaylist = (() => {
-  var __defProp = Object.defineProperty;
-  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-  var __getOwnPropNames = Object.getOwnPropertyNames;
-  var __hasOwnProp = Object.prototype.hasOwnProperty;
-  var __export = (target, all) => {
-    for (var name in all)
-      __defProp(target, name, { get: all[name], enumerable: true });
-  };
-  var __copyProps = (to, from, except, desc) => {
-    if (from && typeof from === "object" || typeof from === "function") {
-      for (let key of __getOwnPropNames(from))
-        if (!__hasOwnProp.call(to, key) && key !== except)
-          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-    }
-    return to;
-  };
-  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
+(() => {
   // src/js/index.js
-  var index_exports = {};
-  __export(index_exports, {
-    WaveformPlaylist: () => WaveformPlaylist,
-    default: () => index_default
-  });
+  var ARTWORK_FALLBACK = "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="4" fill="#71717a" fill-opacity="0.15"/><g fill="none" stroke="#a1a1aa" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="17" r="2.2"/><circle cx="17" cy="15" r="2.2"/><path d="M10.2 17V7l9-1.6v9"/></g></svg>'
+  );
+  function applyArtFallback(img) {
+    img.addEventListener("error", () => {
+      if (!img.src.startsWith("data:")) img.src = ARTWORK_FALLBACK;
+    });
+  }
   var WaveformPlaylist = class {
     /**
      * Create a new WaveformPlaylist instance
@@ -229,11 +214,14 @@ var WaveformPlaylist = (() => {
       if (this.isGrid) {
         this.container.classList.add("wp-grid-layout");
       }
-      if ((this.isHero || this.isGrid) && this.options.density === "compact") {
+      if (this.options.density === "compact") {
         this.container.classList.add("wp-density-compact");
       }
       if ((this.isHero || this.isGrid) && this.options.coverPosition === "top") {
         this.container.classList.add("wp-cover-top");
+      }
+      if (!this.options.showSubtitle) {
+        this.container.classList.add("wp-no-subtitle");
       }
       this.tracks.forEach((track) => {
         if (track.element) {
@@ -294,6 +282,7 @@ var WaveformPlaylist = (() => {
         img.className = "wp-hero-art";
         img.alt = "";
         img.src = first.artwork;
+        applyArtFallback(img);
         cover.appendChild(img);
         this.heroArt = img;
       }
@@ -402,6 +391,7 @@ var WaveformPlaylist = (() => {
           img.className = "wp-queue-thumb-art";
           img.src = track.artwork;
           img.alt = "";
+          applyArtFallback(img);
           thumb.appendChild(img);
           const overlay = document.createElement("span");
           overlay.className = "wp-queue-ov";
@@ -475,6 +465,7 @@ var WaveformPlaylist = (() => {
           img.className = "wp-grid-art";
           img.src = track.artwork;
           img.alt = "";
+          applyArtFallback(img);
           cover.appendChild(img);
         } else {
           const num = document.createElement("span");
@@ -765,6 +756,7 @@ var WaveformPlaylist = (() => {
           const artwork = document.createElement("img");
           artwork.className = "wp-artwork";
           artwork.src = track.artwork;
+          applyArtFallback(artwork);
           artwork.alt = "";
           artworkContainer.appendChild(artwork);
           if (this.options.showPlayState) {
@@ -1222,7 +1214,6 @@ var WaveformPlaylist = (() => {
     window.WaveformPlaylist = WaveformPlaylist;
   }
   var index_default = WaveformPlaylist;
-  return __toCommonJS(index_exports);
 })();
 /**
  * WaveformPlaylist
