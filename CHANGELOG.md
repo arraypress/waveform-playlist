@@ -4,6 +4,17 @@ All notable changes to `@arraypress/waveform-playlist` are documented here. The
 format is based on [Keep a Changelog](https://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.5.1] — 2026-06-30
+
+### Fixed
+
+- **List/minimal now-playing header had no spacing — it touched the track
+  list.** The core player reclasses its container to `waveform-player` on init,
+  which clobbered the `wp-player` hook the list-layout CSS targets, so the
+  header's styling (including its bottom margin) silently never applied. The
+  class is now restored after the player mounts, and the header carries a small
+  bottom margin so it sits cleanly above the list.
+
 ## [1.5.0] — 2026-06-30
 
 ### Added

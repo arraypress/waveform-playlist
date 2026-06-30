@@ -576,6 +576,9 @@ var WaveformPlaylist = class {
       }
     };
     this.player = new window.WaveformPlayer(container, playerOptions);
+    if (!this.isHero && !this.isGrid) {
+      container.classList.add("wp-player");
+    }
     this.setActiveTrack(0);
     this.updateActiveChapter(0);
   }

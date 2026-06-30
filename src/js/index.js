@@ -730,6 +730,15 @@ export class WaveformPlaylist {
         // Create player instance
         this.player = new window.WaveformPlayer(container, playerOptions);
 
+        // The player reclasses its container to `waveform-player`, clobbering the
+        // `wp-player` hook the list/minimal now-playing CSS relies on (the inset
+        // that aligns it with the track rows + the bottom margin that keeps it
+        // from touching the list). Hero/grid target the post-clobber class, so
+        // only list/minimal need the hook restored.
+        if (!this.isHero && !this.isGrid) {
+            container.classList.add('wp-player');
+        }
+
         // Mark first track as active immediately
         this.setActiveTrack(0);
 

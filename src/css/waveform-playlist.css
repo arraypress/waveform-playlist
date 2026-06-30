@@ -20,20 +20,10 @@
    Layout Components
    ========================================================================== */
 
-/* Player Container — the "now playing" header.
-   Inset to match the track rows below so the header's artwork / title / time
-   line up with the list columns. The list (.wp-list-container) has a 1px border
-   and each row (.wp-item) has 1rem of horizontal padding, so without this the
-   header sits ~17px to the left of the rows and nothing aligns. */
+/* Player Container — the "now playing" header. A small bottom margin keeps it
+   off the track list below. */
 .wp-player {
-    margin-bottom: 1rem;
-    padding: 0 calc(1rem + 1px);
-}
-
-/* Breathing room under the now-playing meta (title/subtitle/time) before the
-   track list — the player's info row has no bottom margin of its own. */
-.wp-player .waveform-info {
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
 }
 
 /* `showSubtitle: false` — hide the now-playing + per-row subtitles. (Hero/grid
