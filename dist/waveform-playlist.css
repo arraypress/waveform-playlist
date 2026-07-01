@@ -26,10 +26,10 @@
     margin-bottom: 0.5rem;
 }
 
-/* `showSubtitle: false` — hide the now-playing + per-row subtitles. (Hero/grid
+/* `showArtist: false` — hide the now-playing + per-row artists. (Hero/grid
    skip rendering the element; list/minimal hide it here.) */
-.wp-no-subtitle .wp-subtitle,
-.wp-no-subtitle .waveform-subtitle {
+.wp-no-artist .wp-artist,
+.wp-no-artist .waveform-artist {
     display: none;
 }
 
@@ -144,7 +144,7 @@
     text-overflow: ellipsis;
 }
 
-.wp-subtitle {
+.wp-artist {
     font-size: 0.875rem;
     opacity: 0.6;
     white-space: nowrap;
@@ -309,7 +309,7 @@
         font-size: 0.9375rem;
     }
 
-    .wp-subtitle,
+    .wp-artist,
     .wp-duration {
         font-size: 0.8125rem;
     }
@@ -390,7 +390,7 @@
     margin: 0;
 }
 
-/* Meta row beneath the waveform: now-playing title/subtitle (left) + time (right). */
+/* Meta row beneath the waveform: now-playing title/artist (left) + time (right). */
 .wp-hero-meta {
     display: flex;
     align-items: baseline;
@@ -399,7 +399,7 @@
     margin-top: 0.45rem;
 }
 
-/* Title + subtitle inline on one line (title, then muted subtitle). */
+/* Title + artist inline on one line (title, then muted artist). */
 .wp-hero-titles {
     display: flex;
     align-items: baseline;

@@ -99,7 +99,7 @@ export class WaveformPlaylist {
         // Strip keys the playlist owns or sets per-track, so a container-level
         // data-* can never override them: audioMode (the playlist drives a
         // self-mode player) and the per-track content fields.
-        ['audioMode', 'url', 'title', 'subtitle', 'album', 'artwork', 'markers', 'waveform']
+        ['audioMode', 'url', 'title', 'artist', 'album', 'artwork', 'markers', 'waveform']
             .forEach(key => delete fromData[key]);
         Object.assign(options, fromData);
 
@@ -109,10 +109,10 @@ export class WaveformPlaylist {
         options.expandChapters = container.dataset.expandChapters !== 'false';
         options.showDuration = container.dataset.showDuration !== 'false';
         options.showPlayState = container.dataset.showPlayState !== 'false';
-        // Hero layout: show the now-playing subtitle. On by default (useful for
+        // Hero layout: show the now-playing artist. On by default (useful for
         // mixed-artist playlists); set false for single-artist albums where it
-        // would just repeat. Honours a JS `{ showSubtitle: false }` too.
-        options.showSubtitle = options.showSubtitle !== false && container.dataset.showSubtitle !== 'false';
+        // would just repeat. Honours a JS `{ showArtist: false }` too.
+        options.showArtist = options.showArtist !== false && container.dataset.showArtist !== 'false';
 
         // Hero/grid sizing (px) — null falls back to the derived/CSS default.
         options.coverSize = parseInt(container.dataset.coverSize, 10) || options.coverSize || null;
@@ -227,7 +227,7 @@ export class WaveformPlaylist {
                 index: index,
                 url: el.dataset.url,
                 title: el.dataset.title || this.extractTitleFromUrl(el.dataset.url),
-                subtitle: el.dataset.subtitle || '',
+                artist: el.dataset.artist || '',
                 artwork: el.dataset.artwork,
                 album: el.dataset.album,
                 duration: el.dataset.duration,
@@ -264,11 +264,11 @@ export class WaveformPlaylist {
         if ((this.isHero || this.isGrid) && this.options.coverPosition === 'top') {
             this.container.classList.add('wp-cover-top');
         }
-        // `showSubtitle` also applies to the list/minimal layouts: hero/grid skip
-        // rendering the subtitle element, while list relies on this class to hide
-        // the now-playing + per-row subtitles via CSS.
-        if (!this.options.showSubtitle) {
-            this.container.classList.add('wp-no-subtitle');
+        // `showArtist` also applies to the list/minimal layouts: hero/grid skip
+        // rendering the artist element, while list relies on this class to hide
+        // the now-playing + per-row artists via CSS.
+        if (!this.options.showArtist) {
+            this.container.classList.add('wp-no-artist');
         }
 
         // Hide original track elements
@@ -385,7 +385,7 @@ export class WaveformPlaylist {
         main.className = 'wp-hero-main';
         main.appendChild(stage);
 
-        // Meta row beneath the waveform: now-playing title/subtitle on the
+        // Meta row beneath the waveform: now-playing title/artist on the
         // left, current/total time on the right.
         const meta = document.createElement('div');
         meta.className = 'wp-hero-meta';
@@ -397,12 +397,12 @@ export class WaveformPlaylist {
         titleEl.textContent = first.title || '';
         titles.appendChild(titleEl);
         this.heroTitle = titleEl;
-        // Subtitle is optional (showSubtitle); when on it's always present so a
-        // later track's subtitle can fill in (an empty one is hidden via CSS).
-        if (this.options.showSubtitle) {
+        // Artist is optional (showArtist); when on it's always present so a
+        // later track's artist can fill in (an empty one is hidden via CSS).
+        if (this.options.showArtist) {
             const subEl = document.createElement('span');
             subEl.className = 'wp-hero-sub';
-            subEl.textContent = first.subtitle || '';
+            subEl.textContent = first.artist || '';
             titles.appendChild(subEl);
             this.heroSub = subEl;
         }
@@ -438,7 +438,7 @@ export class WaveformPlaylist {
         // is just the waveform with a title/time meta row beneath it.
         bar.appendChild(stage);
 
-        // Meta row below the waveform: title/subtitle on the left, time on the
+        // Meta row below the waveform: title/artist on the left, time on the
         // right (full width, so the title is never clipped).
         const meta = document.createElement('div');
         meta.className = 'wp-now-meta';
@@ -450,10 +450,10 @@ export class WaveformPlaylist {
         titleEl.textContent = first.title || '';
         titles.appendChild(titleEl);
         this.heroTitle = titleEl;
-        if (this.options.showSubtitle) {
+        if (this.options.showArtist) {
             const subEl = document.createElement('span');
             subEl.className = 'wp-hero-sub';
-            subEl.textContent = first.subtitle || '';
+            subEl.textContent = first.artist || '';
             titles.appendChild(subEl);
             this.heroSub = subEl;
         }
@@ -473,7 +473,7 @@ export class WaveformPlaylist {
 
     /**
      * Build the stripped queue beneath the hero: numbered rows of title +
-     * duration only (no covers, no waveform, no subtitle), with the active row
+     * duration only (no covers, no waveform, no artist), with the active row
      * marked. Reuses the `.wp-item` / `wp-active` machinery the rest of the
      * component already drives.
      * @private
@@ -694,7 +694,7 @@ export class WaveformPlaylist {
             ...this.options,
             url: firstTrack.url,
             title: firstTrack.title,
-            subtitle: firstTrack.subtitle,
+            artist: firstTrack.artist,
             artwork: firstTrack.artwork,
             album: firstTrack.album,
             markers: markers,
@@ -990,7 +990,7 @@ export class WaveformPlaylist {
                 indicator.className = 'wp-indicator';
                 indicator.textContent = index + 1;
                 // The visible number duplicates the row's position; hide it from
-                // AT so the accessible name stays just the title/subtitle.
+                // AT so the accessible name stays just the title/artist.
                 indicator.setAttribute('aria-hidden', 'true');
                 item.appendChild(indicator);
             }
@@ -1004,11 +1004,11 @@ export class WaveformPlaylist {
             title.textContent = track.title;
             info.appendChild(title);
 
-            if (track.subtitle) {
-                const subtitle = document.createElement('div');
-                subtitle.className = 'wp-subtitle';
-                subtitle.textContent = track.subtitle;
-                info.appendChild(subtitle);
+            if (track.artist) {
+                const artist = document.createElement('div');
+                artist.className = 'wp-artist';
+                artist.textContent = track.artist;
+                info.appendChild(artist);
             }
 
             item.appendChild(info);
@@ -1106,7 +1106,7 @@ export class WaveformPlaylist {
             this.player.loadTrack(
                 track.url,
                 track.title,
-                track.subtitle,
+                track.artist,
                 {
                     markers: markers,
                     artwork: track.artwork,
@@ -1271,7 +1271,7 @@ export class WaveformPlaylist {
                 this.heroArt.src = t.artwork;
             }
             if (this.heroTitle) this.heroTitle.textContent = t.title || '';
-            if (this.heroSub) this.heroSub.textContent = t.subtitle || '';
+            if (this.heroSub) this.heroSub.textContent = t.artist || '';
             if (this.heroTime && index !== this._heroTimeIndex) {
                 this.heroTime.textContent = '0:00 / ' + (t.duration || '0:00');
                 this._heroTimeIndex = index;

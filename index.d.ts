@@ -39,8 +39,8 @@ export interface WaveformPlaylistTrack {
     url?: string;
     /** Track title. */
     title: string;
-    /** Track subtitle. */
-    subtitle: string;
+    /** Track artist. */
+    artist: string;
     /** Artwork image URL. */
     artwork?: string;
     /** Album name. */

@@ -36,11 +36,11 @@ export class MockWaveformPlayer {
 		if (typeof this.options.onPause === 'function') this.options.onPause();
 	}
 
-	loadTrack(url, title = null, subtitle = null, options = {}) {
-		this.calls.loadTrack.push({ url, title, subtitle, options });
+	loadTrack(url, title = null, artist = null, options = {}) {
+		this.calls.loadTrack.push({ url, title, artist, options });
 		// Merge as the core does, preserving prior options (incl. onLoad set by
 		// the playlist's whenPlayerReady before this call).
-		this.options = { ...this.options, url, title, subtitle, ...options };
+		this.options = { ...this.options, url, title, artist, ...options };
 		// The core auto-plays a freshly loaded track and signals readiness; do
 		// the same so cross-track seek + continuous advance paths are exercised.
 		if (typeof this.options.onLoad === 'function') this.options.onLoad(this);

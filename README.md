@@ -40,7 +40,7 @@ npm install @arraypress/waveform-player @arraypress/waveform-playlist
   <div data-track 
        data-url="episode.mp3" 
        data-title="Episode 42: AI Revolution"
-       data-subtitle="with Dr. Sarah Chen"
+       data-artist="with Dr. Sarah Chen"
        data-artwork="episode-cover.jpg">
     <div data-chapter data-time="0:00">Introduction</div>
     <div data-chapter data-time="5:30">Main Topic</div>
@@ -57,13 +57,13 @@ npm install @arraypress/waveform-player @arraypress/waveform-playlist
   <div data-track 
        data-url="song1.mp3" 
        data-title="Summer Vibes"
-       data-subtitle="Beach Sounds"
+       data-artist="Beach Sounds"
        data-artwork="cover1.jpg"
        data-duration="3:45"></div>
   <div data-track 
        data-url="song2.mp3" 
        data-title="Night Drive"
-       data-subtitle="Synthwave Mix"
+       data-artist="Synthwave Mix"
        data-artwork="cover2.jpg"
        data-duration="4:12"></div>
 </div>
@@ -77,7 +77,7 @@ npm install @arraypress/waveform-player @arraypress/waveform-playlist
   <div data-track 
        data-url="lesson1.mp3" 
        data-title="Module 1: Introduction"
-       data-subtitle="Getting Started">
+       data-artist="Getting Started">
     <div data-chapter data-time="0:00">Welcome</div>
     <div data-chapter data-time="10:00">Setup</div>
   </div>
@@ -134,7 +134,7 @@ All WaveformPlayer options can be set on the container and will be inherited:
 |-----------|-------------|
 | `data-url` | Audio file URL (required) |
 | `data-title` | Track title |
-| `data-subtitle` | Artist or description |
+| `data-artist` | Artist or description |
 | `data-artwork` | Album artwork URL |
 | `data-album` | Album name (for Media Session API) |
 | `data-duration` | Display duration (e.g., "3:45") |

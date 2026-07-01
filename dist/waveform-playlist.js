@@ -57,14 +57,14 @@
       const container = this.container;
       const options = { ...providedOptions };
       const fromData = this.parsePlayerDataAttributes(container);
-      ["audioMode", "url", "title", "subtitle", "album", "artwork", "markers", "waveform"].forEach((key) => delete fromData[key]);
+      ["audioMode", "url", "title", "artist", "album", "artwork", "markers", "waveform"].forEach((key) => delete fromData[key]);
       Object.assign(options, fromData);
       options.layout = container.dataset.layout || options.layout || "list";
       options.continuous = container.dataset.continuous === "true" || options.continuous || false;
       options.expandChapters = container.dataset.expandChapters !== "false";
       options.showDuration = container.dataset.showDuration !== "false";
       options.showPlayState = container.dataset.showPlayState !== "false";
-      options.showSubtitle = options.showSubtitle !== false && container.dataset.showSubtitle !== "false";
+      options.showArtist = options.showArtist !== false && container.dataset.showArtist !== "false";
       options.coverSize = parseInt(container.dataset.coverSize, 10) || options.coverSize || null;
       options.thumbnailSize = parseInt(container.dataset.thumbnailSize, 10) || options.thumbnailSize || null;
       options.density = container.dataset.density || options.density || "comfortable";
@@ -189,7 +189,7 @@
           index,
           url: el.dataset.url,
           title: el.dataset.title || this.extractTitleFromUrl(el.dataset.url),
-          subtitle: el.dataset.subtitle || "",
+          artist: el.dataset.artist || "",
           artwork: el.dataset.artwork,
           album: el.dataset.album,
           duration: el.dataset.duration,
@@ -220,8 +220,8 @@
       if ((this.isHero || this.isGrid) && this.options.coverPosition === "top") {
         this.container.classList.add("wp-cover-top");
       }
-      if (!this.options.showSubtitle) {
-        this.container.classList.add("wp-no-subtitle");
+      if (!this.options.showArtist) {
+        this.container.classList.add("wp-no-artist");
       }
       this.tracks.forEach((track) => {
         if (track.element) {
@@ -309,10 +309,10 @@
       titleEl.textContent = first.title || "";
       titles.appendChild(titleEl);
       this.heroTitle = titleEl;
-      if (this.options.showSubtitle) {
+      if (this.options.showArtist) {
         const subEl = document.createElement("span");
         subEl.className = "wp-hero-sub";
-        subEl.textContent = first.subtitle || "";
+        subEl.textContent = first.artist || "";
         titles.appendChild(subEl);
         this.heroSub = subEl;
       }
@@ -348,10 +348,10 @@
       titleEl.textContent = first.title || "";
       titles.appendChild(titleEl);
       this.heroTitle = titleEl;
-      if (this.options.showSubtitle) {
+      if (this.options.showArtist) {
         const subEl = document.createElement("span");
         subEl.className = "wp-hero-sub";
-        subEl.textContent = first.subtitle || "";
+        subEl.textContent = first.artist || "";
         titles.appendChild(subEl);
         this.heroSub = subEl;
       }
@@ -367,7 +367,7 @@
     }
     /**
      * Build the stripped queue beneath the hero: numbered rows of title +
-     * duration only (no covers, no waveform, no subtitle), with the active row
+     * duration only (no covers, no waveform, no artist), with the active row
      * marked. Reuses the `.wp-item` / `wp-active` machinery the rest of the
      * component already drives.
      * @private
@@ -545,7 +545,7 @@
         ...this.options,
         url: firstTrack.url,
         title: firstTrack.title,
-        subtitle: firstTrack.subtitle,
+        artist: firstTrack.artist,
         artwork: firstTrack.artwork,
         album: firstTrack.album,
         markers,
@@ -786,11 +786,11 @@
         title.className = "wp-title";
         title.textContent = track.title;
         info.appendChild(title);
-        if (track.subtitle) {
-          const subtitle = document.createElement("div");
-          subtitle.className = "wp-subtitle";
-          subtitle.textContent = track.subtitle;
-          info.appendChild(subtitle);
+        if (track.artist) {
+          const artist = document.createElement("div");
+          artist.className = "wp-artist";
+          artist.textContent = track.artist;
+          info.appendChild(artist);
         }
         item.appendChild(info);
         if (this.options.showDuration && track.duration) {
@@ -860,7 +860,7 @@
         this.player.loadTrack(
           track.url,
           track.title,
-          track.subtitle,
+          track.artist,
           {
             markers,
             artwork: track.artwork,
@@ -990,7 +990,7 @@
           this.heroArt.src = t.artwork;
         }
         if (this.heroTitle) this.heroTitle.textContent = t.title || "";
-        if (this.heroSub) this.heroSub.textContent = t.subtitle || "";
+        if (this.heroSub) this.heroSub.textContent = t.artist || "";
         if (this.heroTime && index !== this._heroTimeIndex) {
           this.heroTime.textContent = "0:00 / " + (t.duration || "0:00");
           this._heroTimeIndex = index;

@@ -21,7 +21,7 @@ function mount(html, options = {}) {
 }
 
 const TWO_TRACKS = `
-	<div data-track data-url="/audio/a.mp3" data-title="Track A" data-subtitle="Artist A" data-artwork="/art/a.jpg" data-duration="3:00"></div>
+	<div data-track data-url="/audio/a.mp3" data-title="Track A" data-artist="Artist A" data-artwork="/art/a.jpg" data-duration="3:00"></div>
 	<div data-track data-url="/audio/b.mp3" data-title="Track B" data-duration="4:30"></div>
 `;
 
@@ -63,7 +63,7 @@ describe('parsing', () => {
 		const { playlist } = mount(TWO_TRACKS);
 		expect(playlist.tracks).toHaveLength(2);
 		expect(playlist.tracks[0].title).toBe('Track A');
-		expect(playlist.tracks[0].subtitle).toBe('Artist A');
+		expect(playlist.tracks[0].artist).toBe('Artist A');
 		expect(playlist.tracks[1].url).toBe('/audio/b.mp3');
 	});
 

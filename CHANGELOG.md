@@ -4,6 +4,14 @@ All notable changes to `@arraypress/waveform-playlist` are documented here. The
 format is based on [Keep a Changelog](https://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING — renamed `subtitle` -> `artist`** on tracks and the embedded
+  player (`data-subtitle` -> `data-artist`, `showSubtitle` -> `showArtist`,
+  `.wp-subtitle` -> `.wp-artist`). No back-compat alias.
+
 ## [1.5.1] — 2026-06-30
 
 ### Fixed
@@ -25,10 +33,10 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- **`density` and `showSubtitle` now apply to the list / minimal layouts**, not
+- **`density` and `showArtist` now apply to the list / minimal layouts**, not
   only hero / grid. `density: 'compact'` tightens list rows (the compact CSS
   already covered `.wp-item`; the class just wasn't being added for list), and
-  `showSubtitle: false` hides the now-playing and per-row subtitles. Also gave
+  `showArtist: false` hides the now-playing and per-row artists. Also gave
   the list-layout now-playing header a little more bottom margin.
 - **`new WaveformPlaylist(...)` from the IIFE/CDN build.** The browser bundle was
   built with esbuild `--global-name=WaveformPlaylist`, which wrapped the exports
@@ -54,7 +62,7 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 - **`hero` layout** (`layout="hero"`) — a "now playing" unit (cover artwork that
   doubles as the play/pause button, immediately beside the waveform, with a
-  title/subtitle + current/total time meta row) over a stripped track queue. The
+  title/artist + current/total time meta row) over a stripped track queue. The
   active track lives only in the hero and the queue carries titles, so nothing is
   shown twice.
 - **`grid` layout** (`layout="grid"`) — a responsive grid of cover-art cards to
@@ -70,7 +78,7 @@ project adheres to [Semantic Versioning](https://semver.org/).
   - `density` (`'comfortable'` | `'compact'`) — row spacing.
   - `coverPosition` (`'left'` | `'top'`) — hero cover beside or above the waveform.
   - `barPosition` (`'top'` | `'bottom'`) — grid's now-playing bar placement.
-  - `showSubtitle` (boolean) — show/hide the now-playing subtitle.
+  - `showArtist` (boolean) — show/hide the now-playing artist.
 
 ### Changed
 
