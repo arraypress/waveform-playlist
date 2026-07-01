@@ -1,6 +1,6 @@
 {
   "name": "@arraypress/waveform-playlist",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Playlist and chapter navigation for WaveformPlayer",
   "main": "dist/waveform-playlist.js",
   "module": "dist/waveform-playlist.esm.js",
