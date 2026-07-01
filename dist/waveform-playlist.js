@@ -554,6 +554,8 @@
         // component's own chrome, so suppress the player's button + info row.
         ...this.isHero || this.isGrid ? { showControls: false, showInfo: false } : {},
         onEnd: () => this.onTrackEnd(),
+        onNextTrack: () => this.nextTrack(),
+        onPreviousTrack: () => this.previousTrack(),
         onTimeUpdate: (current, total) => {
           this.updateActiveChapter(current);
           if (this.isHero || this.isGrid) this.updateHeroTime(current, total);

@@ -6,6 +6,14 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Lock-screen skip-track buttons.** Wires `onNextTrack` / `onPreviousTrack` to
+  the playlist's track navigation, so the OS Media Session next/previous controls
+  move between tracks. (Needs `@arraypress/waveform-player` >= 1.19.)
+
+## [1.6.0] — 2026-07-01
+
 ### Changed
 
 - **BREAKING — renamed `subtitle` -> `artist`** on tracks and the embedded
