@@ -10,6 +10,18 @@
 .waveform-playlist {
     font-family: inherit;
     color: inherit;
+
+    /* Glyph-over-cover overlays (hero transport, grid item). Deliberately not
+       theme-varying: the cover underneath is an arbitrary image, so a light
+       page says nothing about it — the overlay is always a dark surface and
+       always takes the dark treatment. The scrim is what keeps the glyph over
+       WCAG 1.4.11's 3:1 minimum on ANY cover; re-theme the pair together or
+       that guarantee goes with it. Mirrors --wfp-btn-artwork-* in
+       @arraypress/waveform-player, which solves the same problem for
+       artworkPosition: 'button'. */
+    --wp-cover-overlay-color: #fff;
+    --wp-cover-overlay-scrim: rgba(0, 0, 0, 0.5);
+    --wp-cover-overlay-scrim-hover: rgba(0, 0, 0, 0.62);
 }
 
 .waveform-playlist * {
@@ -354,21 +366,25 @@
     display: block;
 }
 
+/* The resting state is the one everybody sees, so it carries the contrast
+   guarantee — 0.22 here read as 1.69:1 on a light cover, i.e. an all-but-
+   invisible glyph that only became legible once you hovered it. Hover now
+   deepens from an already-safe floor rather than rescuing an unsafe one. */
 .wp-hero-overlay {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.22);
-    color: #fff;
+    background: var(--wp-cover-overlay-scrim);
+    color: var(--wp-cover-overlay-color);
     font-size: 1.4rem;
     transition: background-color 0.15s;
 }
 
 .wp-hero-cover:hover .wp-hero-overlay,
 .wp-hero-cover:focus-visible .wp-hero-overlay {
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--wp-cover-overlay-scrim-hover);
 }
 
 .wp-hero-cover:focus-visible {
@@ -617,8 +633,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.4);
-    color: #fff;
+    background: var(--wp-cover-overlay-scrim);
+    color: var(--wp-cover-overlay-color);
     font-size: 1.1rem;
     opacity: 0;
     transition: opacity 0.15s;

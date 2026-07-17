@@ -6,6 +6,25 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The play glyph on cover art is now legible at rest.** The hero cover doubles
+  as the transport, and its overlay rested at `rgba(0, 0, 0, 0.22)` — only
+  **1.69:1** against a light cover, well under WCAG 1.4.11's 3:1 minimum for
+  non-text contrast. The glyph was effectively invisible until you hovered it,
+  at which point the overlay deepened to `0.5` and became readable: the resting
+  state, which is what everyone actually sees, was the unsafe one. The grid
+  item's overlay had the same problem less severely (`0.4` → 2.85:1), and it
+  stays up for the *active* item rather than only on hover.
+
+  Both now rest at a scrim that clears 3:1 over any cover, and hover deepens
+  from an already-safe floor instead of rescuing an unsafe one. The colours moved
+  to `--wp-cover-overlay-color` / `--wp-cover-overlay-scrim` /
+  `--wp-cover-overlay-scrim-hover`, mirroring `--wfp-btn-artwork-*` in
+  `@arraypress/waveform-player` — re-theme the scrim and glyph together, or the
+  contrast guarantee goes with it. A test recomputes the worst case from the
+  declared values and fails below 3:1.
+
 ### Added
 
 - **Lock-screen skip-track buttons.** Wires `onNextTrack` / `onPreviousTrack` to
