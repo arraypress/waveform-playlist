@@ -6,6 +6,8 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-07-17
+
 ### Fixed
 
 - **The play glyph on cover art is now legible at rest.** The hero cover doubles
@@ -24,6 +26,8 @@ project adheres to [Semantic Versioning](https://semver.org/).
   `@arraypress/waveform-player` — re-theme the scrim and glyph together, or the
   contrast guarantee goes with it. A test recomputes the worst case from the
   declared values and fails below 3:1.
+
+## [1.7.0] — 2026-07-01
 
 ### Added
 
