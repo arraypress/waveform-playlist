@@ -189,7 +189,7 @@ export class WaveformPlaylist {
 
         // Layout / sizing
         str('waveformStyle'); int('barWidth'); int('barSpacing'); int('barRadius');
-        str('buttonAlign'); int('height'); int('samples'); str('preload');
+        str('buttonAlign'); int('height'); int('samples'); str('preload'); str('crossOrigin');
         // Colours
         str('colorPreset'); str('waveformColor'); str('progressColor'); str('buttonColor');
         str('buttonHoverColor'); str('textColor'); str('textSecondaryColor');

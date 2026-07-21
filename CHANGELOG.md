@@ -6,6 +6,17 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.2] — 2026-07-22
+
+### Added
+
+- **`crossOrigin` player option is forwarded.** Container `data-cross-origin`
+  (and the `crossOrigin` option) now flow to each track's player. The modern
+  path already forwarded it verbatim through `WaveformPlayer.utils.parseDataAttributes`;
+  this adds it to the legacy fallback parser too, so it works regardless of the
+  installed core version. Requires `@arraypress/waveform-player@^1.23.0` for the
+  option to take effect.
+
 ## [1.7.1] — 2026-07-17
 
 ### Fixed

@@ -142,6 +142,7 @@
       int("height");
       int("samples");
       str("preload");
+      str("crossOrigin");
       str("colorPreset");
       str("waveformColor");
       str("progressColor");
