@@ -6,6 +6,28 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.3] — 2026-08-11
+
+### Fixed
+
+- **One malformed `data-markers` no longer takes the whole playlist down.**
+  `parseTracks()` read every track's attribute through a bare `JSON.parse`, and
+  it runs before anything is rendered — so a single syntax error anywhere in the
+  markup threw and destroyed the playlist rather than costing that one track its
+  markers. Markers are now parsed defensively and shape-checked: `JSON.parse`
+  validates syntax only, so `'2'` or `'"x"'` parsed cleanly and then failed at
+  the first `.length`/`.map()` downstream. Entries whose `time` isn't a number
+  are dropped instead of rendering at `left: NaN%`.
+- **Unparseable numeric attributes are no longer forwarded to the player.**
+  `data-height="tall"` became `NaN`, which sizes the player's canvas to nothing —
+  a broken-looking player from a typo'd attribute. Bad values now leave the
+  default in place and warn, naming the attribute.
+- **`data-playback-rates` must be a JSON array.** Non-array JSON was forwarded
+  verbatim and threw inside the player's speed menu.
+- **A mistyped chapter `data-time` reads as 0 rather than NaN.** `parseTime`
+  returned `NaN` for the two-part form (`"1:ab"`), which then rendered as `NaN`
+  in the chapter list and positioned its marker at `left: NaN%`.
+
 ## [1.7.2] — 2026-07-22
 
 ### Added

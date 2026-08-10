@@ -351,3 +351,88 @@ describe('destroy', () => {
 		}).not.toThrow();
 	});
 });
+
+describe('malformed markup does not take the playlist down', () => {
+	let warn;
+	beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+	afterEach(() => { warn.mockRestore(); });
+
+	// parseTracks() reads every track's data-markers before anything renders,
+	// so an unguarded JSON.parse there meant one bad attribute anywhere in the
+	// markup threw and destroyed the whole playlist.
+	it('survives malformed marker JSON on a track', () => {
+		const html = `
+			<div data-track data-url="/audio/a.mp3" data-title="Track A" data-markers="{not json"></div>
+			<div data-track data-url="/audio/b.mp3" data-title="Track B"></div>
+		`;
+		let playlist;
+		expect(() => { ({ playlist } = mount(html)); }).not.toThrow();
+
+		expect(playlist.tracks).toHaveLength(2);
+		expect(playlist.tracks[0].markers).toEqual([]);
+		expect(warn).toHaveBeenCalled();
+	});
+
+	it('rejects marker JSON that parses but is not an array', () => {
+		const html = `<div data-track data-url="/a.mp3" data-markers='"hello"'></div>`;
+		const { playlist } = mount(html);
+		expect(playlist.tracks[0].markers).toEqual([]);
+	});
+
+	it('keeps well-formed markers and drops only the unusable entries', () => {
+		const html = `<div data-track data-url="/a.mp3" data-markers='[{"time":"x"},{"time":30,"label":"Drop"},null]'></div>`;
+		const { playlist } = mount(html);
+		expect(playlist.tracks[0].markers).toEqual([{ time: 30, label: 'Drop' }]);
+	});
+
+	it('accepts a numeric-string marker time', () => {
+		const html = `<div data-track data-url="/a.mp3" data-markers='[{"time":"30","label":"Drop"}]'></div>`;
+		const { playlist } = mount(html);
+		expect(playlist.tracks[0].markers).toEqual([{ time: 30, label: 'Drop' }]);
+	});
+
+	it('does not forward a non-numeric data-height to the player', () => {
+		const { playlist } = mountWithData({ height: 'tall' }, TWO_TRACKS);
+		expect(playlist.player.options.height).toBeUndefined();
+		expect(warn).toHaveBeenCalled();
+	});
+
+	it('does not forward playbackRates that are not a JSON array', () => {
+		const { playlist } = mountWithData({ playbackRates: '2' }, TWO_TRACKS);
+		expect(playlist.player.options.playbackRates).toBeUndefined();
+	});
+
+	it('still forwards valid numeric and list attributes', () => {
+		const { playlist } = mountWithData({ height: '150', playbackRates: '[1,2]' }, TWO_TRACKS);
+		expect(playlist.player.options.height).toBe(150);
+		expect(playlist.player.options.playbackRates).toEqual([1, 2]);
+	});
+});
+
+describe('parseTime', () => {
+	it('parses the documented formats', () => {
+		const { playlist } = mount(TWO_TRACKS);
+		expect(playlist.parseTime('0:00')).toBe(0);
+		expect(playlist.parseTime('1:30')).toBe(90);
+		expect(playlist.parseTime('90')).toBe(90);
+	});
+
+	it('returns 0 rather than NaN for a mistyped chapter time', () => {
+		const { playlist } = mount(TWO_TRACKS);
+		expect(playlist.parseTime('1:ab')).toBe(0);
+		expect(playlist.parseTime('soon')).toBe(0);
+		expect(playlist.parseTime('')).toBe(0);
+		expect(playlist.parseTime(undefined)).toBe(0);
+		expect(playlist.parseTime('-5')).toBe(0);
+	});
+
+	it('keeps a chapter with a mistyped time out of NaN positioning', () => {
+		const html = `
+			<div data-track data-url="/a.mp3">
+				<span data-chapter data-time="bogus">Intro</span>
+			</div>
+		`;
+		const { playlist } = mount(html);
+		expect(playlist.tracks[0].chapters[0].time).toBe(0);
+	});
+});

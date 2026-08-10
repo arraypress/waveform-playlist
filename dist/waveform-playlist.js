@@ -120,19 +120,25 @@
         if (ds[k] === "true") opts[o] = true;
         else if (ds[k] === "false") opts[o] = false;
       };
-      const int = (k, o = k) => {
-        if (ds[k]) opts[o] = parseInt(ds[k], 10);
-      };
-      const float = (k, o = k) => {
-        if (ds[k]) opts[o] = parseFloat(ds[k]);
-      };
-      const json = (k, o = k) => {
+      const num = (k, o, parse) => {
         if (!ds[k]) return;
+        const n = parse(ds[k]);
+        if (Number.isFinite(n)) opts[o] = n;
+        else console.warn(`[WaveformPlaylist] Invalid ${k} attribute, expected a number:`, ds[k]);
+      };
+      const int = (k, o = k) => num(k, o, (v) => parseInt(v, 10));
+      const float = (k, o = k) => num(k, o, parseFloat);
+      const jsonArray = (k, o = k) => {
+        if (!ds[k]) return;
+        let parsed;
         try {
-          opts[o] = JSON.parse(ds[k]);
+          parsed = JSON.parse(ds[k]);
         } catch (e) {
           console.warn(`[WaveformPlaylist] Invalid ${k} JSON:`, e);
+          return;
         }
+        if (Array.isArray(parsed)) opts[o] = parsed;
+        else console.warn(`[WaveformPlaylist] Invalid ${k} attribute, expected a JSON array:`, ds[k]);
       };
       str("waveformStyle");
       int("barWidth");
@@ -165,12 +171,44 @@
       bool("showMarkers");
       bool("accessibleSeek");
       float("playbackRate");
-      json("playbackRates");
+      jsonArray("playbackRates");
       str("seekLabel");
       str("errorText");
       str("playIcon");
       str("pauseIcon");
       return opts;
+    }
+    /**
+     * Parse a track's `data-markers` attribute into renderable markers.
+     *
+     * Every track's attribute is read during `parseTracks()`, which runs before
+     * anything is rendered — so an unguarded parse here meant one malformed
+     * `data-markers` anywhere in the markup threw and took the whole playlist
+     * down with it. Bad input now costs that one track its markers and warns.
+     *
+     * Entries are shape-checked as well as parsed: `JSON.parse` validates
+     * syntax only, so `'2'` or `'"x"'` parse cleanly and then fail at the first
+     * `.length`/`.map()` downstream, and a marker whose `time` isn't a number
+     * renders at `left: NaN%`.
+     *
+     * @private
+     * @param {string|undefined} raw - Raw `data-markers` value.
+     * @returns {Array<Object>} Renderable markers (empty when nothing survives).
+     */
+    parseMarkers(raw) {
+      if (!raw) return [];
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        console.warn("[WaveformPlaylist] Invalid markers JSON:", e);
+        return [];
+      }
+      if (!Array.isArray(parsed)) {
+        console.warn("[WaveformPlaylist] Invalid markers attribute, expected a JSON array:", raw);
+        return [];
+      }
+      return parsed.map((m) => m && typeof m === "object" ? { ...m, time: Number(m.time) } : null).filter((m) => m && Number.isFinite(m.time));
     }
     /**
      * Parse tracks and chapters from container markup
@@ -196,7 +234,7 @@
           duration: el.dataset.duration,
           chapters,
           // Parse explicit markers if provided (separate from chapters)
-          markers: el.dataset.markers ? JSON.parse(el.dataset.markers) : []
+          markers: this.parseMarkers(el.dataset.markers)
         };
       });
     }
@@ -1095,16 +1133,21 @@
     }
     /**
      * Parse time string to seconds
+     *
+     * A `data-time` an author mistyped (`"1:ab"`, `"soon"`) used to yield NaN
+     * for the two-part form, which then rendered as `NaN` in the chapter list
+     * and positioned the chapter marker at `left: NaN%`. Anything unparseable
+     * is 0 — the start of the track — rather than a value that poisons every
+     * calculation it touches.
+     *
      * @private
      * @param {string} timeStr - Time string in format "M:SS" or "MM:SS"
-     * @returns {number} Time in seconds
+     * @returns {number} Time in seconds, or 0 when unparseable
      */
     parseTime(timeStr) {
-      const parts = timeStr.split(":").map(Number);
-      if (parts.length === 2) {
-        return parts[0] * 60 + parts[1];
-      }
-      return parts[0] || 0;
+      const parts = String(timeStr ?? "").split(":").map(Number);
+      const seconds = parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0];
+      return Number.isFinite(seconds) && seconds >= 0 ? seconds : 0;
     }
     /**
      * Format seconds to time string
