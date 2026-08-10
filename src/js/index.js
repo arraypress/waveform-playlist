@@ -16,6 +16,32 @@ const ARTWORK_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="4" fill="#71717a" fill-opacity="0.15"/><g fill="none" stroke="#a1a1aa" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="17" r="2.2"/><circle cx="17" cy="15" r="2.2"/><path d="M10.2 17V7l9-1.6v9"/></g></svg>'
 );
 
+/**
+ * Options the playlist owns, which must never travel to the embedded player.
+ *
+ * The playlist and the player read their options from the SAME container and
+ * the same `data-*` namespace, and `layout` exists in both surfaces with
+ * different vocabularies — the playlist's is `list | minimal | hero | grid`,
+ * the player's is `default | preview`. Spreading the playlist's options into
+ * the player therefore handed it a layout it has never supported.
+ *
+ * That was invisible until core 1.25.0: the player only ever tested
+ * `layout === 'preview'`, so an unknown value silently rendered as `default`.
+ * 1.25.0 validates enumerated options, so the same leak now prints
+ * `[WaveformPlayer] Invalid layout option, using default: hero` on every hero
+ * playlist. Rendering is unchanged either way — the warning was the symptom,
+ * not the bug.
+ *
+ * `layout` is the only name that genuinely collides today; the rest are listed
+ * so a future player option can't quietly start colliding with one of them.
+ * @private
+ */
+const PLAYLIST_OWN_OPTIONS = [
+    'layout', 'continuous', 'expandChapters', 'showDuration', 'showPlayState',
+    'showArtist', 'coverSize', 'thumbnailSize', 'density', 'coverPosition',
+    'barPosition', 'showChapterMarkers', 'chapterMarkerColor'
+];
+
 /** Swap a broken artwork `<img>` for the placeholder tile on load failure. */
 function applyArtFallback(img) {
     img.addEventListener('error', () => {
@@ -745,9 +771,14 @@ export class WaveformPlaylist {
             }));
         }
 
-        // Merge container options with first track data
+        // Merge container options with first track data, minus the options the
+        // playlist owns — see PLAYLIST_OWN_OPTIONS for why `layout` in
+        // particular must not travel.
+        const forwarded = {...this.options};
+        PLAYLIST_OWN_OPTIONS.forEach(key => delete forwarded[key]);
+
         const playerOptions = {
-            ...this.options,
+            ...forwarded,
             url: firstTrack.url,
             title: firstTrack.title,
             artist: firstTrack.artist,

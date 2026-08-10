@@ -436,3 +436,42 @@ describe('parseTime', () => {
 		expect(playlist.tracks[0].chapters[0].time).toBe(0);
 	});
 });
+
+describe('playlist options do not leak into the embedded player', () => {
+	// The playlist and the player read the same container and the same data-*
+	// namespace, and `layout` exists in both with different vocabularies. The
+	// leak was silent until core 1.25.0 started validating enums, at which point
+	// every hero playlist logged "Invalid layout option, using default: hero".
+	it('never forwards its own layout to the player', () => {
+		for (const layout of ['hero', 'grid', 'minimal', 'list']) {
+			MockWaveformPlayer.instances = [];
+			const { playlist } = mountWithData({ layout }, TWO_TRACKS);
+
+			expect(playlist.options.layout).toBe(layout);
+			expect(playlist.player.options.layout).toBeUndefined();
+		}
+	});
+
+	it('keeps the rest of its own option surface out of the player', () => {
+		const { playlist } = mountWithData(
+			{ layout: 'hero', continuous: 'true', density: 'compact', coverPosition: 'top' },
+			TWO_TRACKS
+		);
+
+		for (const key of ['continuous', 'density', 'coverPosition', 'showChapterMarkers', 'chapterMarkerColor']) {
+			expect(playlist.player.options[key]).toBeUndefined();
+		}
+	});
+
+	it('still forwards genuine player options', () => {
+		const { playlist } = mountWithData({ layout: 'hero', height: '120', waveformStyle: 'bars' }, TWO_TRACKS);
+
+		expect(playlist.player.options.height).toBe(120);
+		expect(playlist.player.options.waveformStyle).toBe('bars');
+	});
+
+	it('still applies the hero layout to the playlist itself', () => {
+		const { playlist } = mountWithData({ layout: 'hero' }, TWO_TRACKS);
+		expect(playlist.isHero).toBe(true);
+	});
+});

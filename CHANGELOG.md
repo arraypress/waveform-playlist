@@ -6,6 +6,22 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.4] — 2026-08-11
+
+### Fixed
+
+- **The playlist no longer leaks its own `layout` into the embedded player.**
+  Both components read options from the same container and the same `data-*`
+  namespace, and `layout` exists in both surfaces with different vocabularies —
+  the playlist's is `list | minimal | hero | grid`, the player's is
+  `default | preview`. `initPlayer()` spread the playlist's whole option object
+  into the player, so a hero playlist handed the player a layout it has never
+  supported. Harmless in appearance (the player fell back to `default`, which is
+  what it silently did before) but it printed
+  `[WaveformPlayer] Invalid layout option, using default: hero` on every hero
+  playlist once core 1.25.0 began validating enumerated options. Playlist-owned
+  options are now stripped before forwarding.
+
 ## [1.7.3] — 2026-08-11
 
 ### Fixed
