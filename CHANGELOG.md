@@ -112,6 +112,12 @@ project adheres to [Semantic Versioning](https://semver.org/).
   and confused the active-chapter scan. The playlist now also warns
   (`[WaveformPlaylist] …`) about a chapter with no `data-time` (placed at
   0:00) and, once the duration is known, one that starts after the track ends.
+- **Peer dependency raised to `@arraypress/waveform-player@^1.24.5`** (was
+  `^1.7.2`, which it had long since outgrown). The playlist relies on
+  `onNextTrack`/`onPreviousTrack` (1.19.0), `loadTrack()` adding and removing
+  artist/artwork in place (1.21.0), `crossOrigin` (1.23.0), and — new with the
+  chapter-seek fix above — `load()` reporting `onLoad` under `preload: 'none'`
+  instead of hanging (1.24.5).
 
 ## [1.7.4] — 2026-08-11
 

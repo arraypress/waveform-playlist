@@ -250,3 +250,22 @@ describe('legacy fallback parser matches the core (finding 16)', () => {
 		expect(fallback(el)).toMatchObject(core);
 	});
 });
+
+describe('peer dependency floor (finding 19)', () => {
+	// The oldest core whose behaviour the playlist relies on:
+	//   1.19.0 onNextTrack/onPreviousTrack (lock-screen skip buttons)
+	//   1.21.0 loadTrack() adds/removes artist + artwork in place
+	//   1.23.0 crossOrigin
+	//   1.24.5 load() reports onLoad under preload="none" instead of hanging —
+	//          cross-track chapter seeks wait on that onLoad.
+	const FLOOR = [1, 24, 5];
+
+	it('does not admit a core older than the playlist needs', async () => {
+		const { readFileSync } = await import('node:fs');
+		const pkg = JSON.parse(readFileSync(`${process.cwd()}/package.json`, 'utf8'));
+		const range = pkg.peerDependencies['@arraypress/waveform-player'];
+		const [, ...floor] = range.match(/^\^(\d+)\.(\d+)\.(\d+)$/).map(Number);
+		const cmp = floor.findIndex((n, i) => n !== FLOOR[i]);
+		expect(cmp === -1 || floor[cmp] > FLOOR[cmp], `peer range ${range} is below ${FLOOR.join('.')}`).toBe(true);
+	});
+});

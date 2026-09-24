@@ -58,7 +58,7 @@
   },
   "homepage": "https://github.com/arraypress/waveform-playlist#readme",
   "peerDependencies": {
-    "@arraypress/waveform-player": "^1.7.2"
+    "@arraypress/waveform-player": "^1.24.5"
   },
   "devDependencies": {
     "@arraypress/waveform-player": "^1.27.1",
