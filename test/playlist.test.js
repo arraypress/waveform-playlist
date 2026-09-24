@@ -861,3 +861,163 @@ describe('chapter seeks with preload="none"', () => {
 		expect(playlist.player.audio.currentTime).toBe(0);
 	});
 });
+
+describe('chapter sublists follow the active track', () => {
+	// Not every track has chapters, so sublist N is not track N.
+	const SPARSE = `
+		<div data-track data-url="/a.mp3" data-title="A"></div>
+		<div data-track data-url="/b.mp3" data-title="B"><span data-chapter data-time="0:10">B1</span></div>
+		<div data-track data-url="/c.mp3" data-title="C"><span data-chapter data-time="0:20">C1</span></div>
+	`;
+	const shown = (container) => [...container.querySelectorAll('.wp-chapters')]
+		.filter((el) => el.style.display !== 'none')
+		.map((el) => el.dataset.trackIndex);
+
+	for (const layout of ['list', 'hero']) {
+		it(`reveals the selected track's sublist by track index (${layout})`, () => {
+			const { container, playlist } = mount(SPARSE, { layout });
+			playlist.selectTrack(2);
+			expect(shown(container)).toEqual(['2']);
+			playlist.selectTrack(1);
+			expect(shown(container)).toEqual(['1']);
+			playlist.selectTrack(0);
+			expect(shown(container)).toEqual([]);
+		});
+	}
+
+	it('reveals the first track\'s chapters on init in the list layout', () => {
+		const html = `
+			<div data-track data-url="/a.mp3" data-title="A"><span data-chapter data-time="0:10">A1</span></div>
+			<div data-track data-url="/b.mp3" data-title="B"></div>
+		`;
+		const { container } = mount(html);
+		expect(shown(container)).toEqual(['0']);
+	});
+});
+
+describe('play state overlay', () => {
+	// Only tracks with artwork have an artwork container, so the Nth container
+	// is not necessarily track N.
+	it('shows the overlay on the active row when earlier rows have no artwork', () => {
+		const html = `
+			<div data-track data-url="/a.mp3" data-title="A"></div>
+			<div data-track data-url="/b.mp3" data-title="B" data-artwork="/art/b.jpg"></div>
+		`;
+		const { container, playlist } = mount(html);
+		playlist.selectTrack(1);
+		playlist.player.play();
+
+		const overlay = container.querySelector('.wp-item[data-index="1"] .wp-artwork-overlay');
+		expect(overlay.style.display).toBe('flex');
+		expect(overlay.querySelector('i').className).toContain('ti-player-pause');
+	});
+
+	it('hides the overlay on a row that is no longer active', () => {
+		const { container, playlist } = mount(TWO_TRACKS);
+		playlist.player.play();
+		const overlay = container.querySelector('.wp-item[data-index="0"] .wp-artwork-overlay');
+		expect(overlay.style.display).toBe('flex');
+		playlist.selectTrack(1);
+		playlist.player.play();
+		expect(overlay.style.display).toBe('none');
+	});
+});
+
+describe('chapter highlighting', () => {
+	const LATE_CHAPTERS = `
+		<div data-track data-url="/a.mp3" data-title="A">
+			<span data-chapter data-time="0:30">A1</span>
+			<span data-chapter data-time="1:00">A2</span>
+		</div>
+		<div data-track data-url="/b.mp3" data-title="B"></div>
+	`;
+	const current = (container) => [...container.querySelectorAll('[aria-current="true"]')]
+		.filter((el) => el.matches('.wp-chapter, .wp-chapter-item'));
+
+	it('does not keep a stale chapter highlighted when returning to a track', () => {
+		const { container, playlist } = mount(LATE_CHAPTERS);
+		playlist.updateActiveChapter(45);
+		expect(current(container)).toHaveLength(1);
+
+		playlist.selectTrack(1);
+		playlist.selectTrack(0);
+		playlist.updateActiveChapter(0); // before the first chapter
+		expect(current(container)).toHaveLength(0);
+		expect(container.querySelectorAll('.wp-chapter.wp-active')).toHaveLength(0);
+	});
+
+	it('clears the highlight when a single chaptered track is reselected', () => {
+		const html = LATE_CHAPTERS.replace(/<div data-track data-url="\/b.mp3"[^>]*><\/div>/, '');
+		const { container, playlist } = mount(html);
+		playlist.updateActiveChapter(45);
+		expect(current(container)).toHaveLength(1);
+		playlist.selectTrack(0);
+		playlist.updateActiveChapter(0);
+		expect(current(container)).toHaveLength(0);
+	});
+});
+
+describe('chapter times', () => {
+	let warn;
+	beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+	afterEach(() => { warn.mockRestore(); });
+
+	it('sorts chapters by time', () => {
+		const html = `
+			<div data-track data-url="/a.mp3">
+				<span data-chapter data-time="1:30">Main</span>
+				<span data-chapter data-time="0:00">Intro</span>
+				<span data-chapter data-time="0:45">Early</span>
+			</div>
+		`;
+		const { container, playlist } = mount(html);
+		expect(playlist.tracks[0].chapters.map((c) => c.label)).toEqual(['Intro', 'Early', 'Main']);
+		expect([...container.querySelectorAll('.wp-chapter-item .wp-label')].map((el) => el.textContent))
+			.toEqual(['Intro', 'Early', 'Main']);
+	});
+
+	it('warns about chapters without a data-time', () => {
+		const html = `
+			<div data-track data-url="/a.mp3">
+				<span data-chapter>Untimed</span>
+				<span data-chapter data-time="0:45">Timed</span>
+			</div>
+		`;
+		mount(html);
+		expect(warn).toHaveBeenCalledTimes(1);
+		expect(warn.mock.calls[0][0]).toContain('[WaveformPlaylist]');
+		expect(warn.mock.calls[0].join(' ')).toContain('Untimed');
+	});
+
+	it('highlights the FIRST of several chapters sharing a time', () => {
+		const html = `
+			<div data-track data-url="/a.mp3">
+				<span data-chapter>One</span>
+				<span data-chapter>Two</span>
+				<span data-chapter data-time="1:00">Three</span>
+			</div>
+		`;
+		const { container, playlist } = mount(html);
+		playlist.updateActiveChapter(10);
+		const items = container.querySelectorAll('.wp-chapter-item');
+		expect(items[0].getAttribute('aria-current')).toBe('true');
+		expect(items[1].hasAttribute('aria-current')).toBe(false);
+		playlist.updateActiveChapter(61);
+		expect(items[2].getAttribute('aria-current')).toBe('true');
+	});
+
+	it('warns once about chapters beyond the duration once it is known', () => {
+		const html = `
+			<div data-track data-url="/a.mp3">
+				<span data-chapter data-time="0:00">Intro</span>
+				<span data-chapter data-time="3:00">Too late</span>
+			</div>
+		`;
+		const { playlist } = mount(html);
+		playlist.player.options.onTimeUpdate(1, 120, playlist.player);
+		playlist.player.options.onTimeUpdate(2, 120, playlist.player);
+		expect(warn).toHaveBeenCalledTimes(1);
+		expect(warn.mock.calls[0][0]).toContain('[WaveformPlaylist]');
+		expect(warn.mock.calls[0].join(' ')).toContain('Too late');
+	});
+});

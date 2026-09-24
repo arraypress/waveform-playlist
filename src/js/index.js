@@ -346,13 +346,22 @@ export class WaveformPlaylist {
         const trackElements = this.container.querySelectorAll('[data-track]');
 
         this.tracks = Array.from(trackElements).map((el, index) => {
-            // Parse chapters from child elements
-            const chapters = Array.from(el.querySelectorAll('[data-chapter]')).map(ch => ({
-                time: this.parseTime(ch.dataset.time || '0:00'),
-                label: ch.textContent.trim(),
-                color: ch.dataset.color,
-                element: ch
-            }));
+            // Parse chapters from child elements, in time order (stable, so
+            // chapters sharing a time keep their markup order). Everything
+            // downstream — the rendered list, the active-chapter scan, the
+            // markers — assumes ascending times.
+            const chapters = Array.from(el.querySelectorAll('[data-chapter]')).map(ch => {
+                const label = ch.textContent.trim();
+                if (!(ch.dataset.time || '').trim()) {
+                    console.warn(`[WaveformPlaylist] Chapter "${label}" has no data-time; placing it at 0:00.`);
+                }
+                return {
+                    time: this.parseTime(ch.dataset.time || '0:00'),
+                    label: label,
+                    color: ch.dataset.color,
+                    element: ch
+                };
+            }).sort((a, b) => a.time - b.time);
 
             return {
                 element: el,
@@ -965,6 +974,7 @@ export class WaveformPlaylist {
             onNextTrack: chain('onNextTrack', () => this.nextTrack()),
             onPreviousTrack: chain('onPreviousTrack', () => this.previousTrack()),
             onTimeUpdate: chain('onTimeUpdate', (current, total) => {
+                this.checkChapterRange(total);
                 this.updateActiveChapter(current);
                 if (this.isHero || this.isGrid) this.updateHeroTime(current, total);
             }),
@@ -1018,9 +1028,12 @@ export class WaveformPlaylist {
 
         if (!this.options.showPlayState) return;
 
-        // Update all artwork play states
-        this.listElement.querySelectorAll('.wp-artwork-container').forEach((container, i) => {
-            const isActive = i === this.currentTrackIndex;
+        // Update all artwork play states. Resolve each overlay's track from
+        // its row: only tracks with artwork have a container, so the Nth
+        // container is not necessarily track N.
+        this.listElement.querySelectorAll('.wp-artwork-container').forEach((container) => {
+            const row = container.closest('[data-index]');
+            const isActive = !!row && Number(row.dataset.index) === this.currentTrackIndex;
             const overlay = container.querySelector('.wp-artwork-overlay');
             if (overlay) {
                 overlay.style.display = isActive ? 'flex' : 'none';
@@ -1041,12 +1054,15 @@ export class WaveformPlaylist {
         const track = this.tracks[this.currentTrackIndex];
         if (!track.chapters.length) return;
 
-        // Find current chapter based on time
+        // Find current chapter based on time. Chapters are sorted, so it's the
+        // last one started — but the FIRST of several sharing a start time
+        // (e.g. untimed chapters, which all sit at 0:00), not the last.
         let activeChapterIndex = -1;
-        for (let i = track.chapters.length - 1; i >= 0; i--) {
-            if (currentTime >= track.chapters[i].time) {
+        for (let i = 0; i < track.chapters.length; i++) {
+            const time = track.chapters[i].time;
+            if (time > currentTime) break;
+            if (activeChapterIndex === -1 || time !== track.chapters[activeChapterIndex].time) {
                 activeChapterIndex = i;
-                break;
             }
         }
 
@@ -1069,6 +1085,26 @@ export class WaveformPlaylist {
                 });
             }
         }
+    }
+
+    /**
+     * Warn (once per track) about chapters that start beyond the track's end —
+     * a typo'd `data-time` that can never become active. Only checkable once
+     * the real duration is known, hence the time-update hook.
+     * @private
+     * @param {number} duration - Track duration in seconds.
+     */
+    checkChapterRange(duration) {
+        const index = this.currentTrackIndex;
+        const track = this.tracks[index];
+        if (!track || !(duration > 0) || !Number.isFinite(duration)) return;
+        this.rangeChecked = this.rangeChecked || new Set();
+        if (this.rangeChecked.has(index)) return;
+        this.rangeChecked.add(index);
+
+        track.chapters.filter(ch => ch.time > duration).forEach(ch => {
+            console.warn(`[WaveformPlaylist] Chapter "${ch.label}" starts at ${this.formatTime(ch.time)}, after the end of "${track.title}" (${this.formatTime(duration)}).`);
+        });
     }
 
     /**
@@ -1353,15 +1389,25 @@ export class WaveformPlaylist {
             this.player.loadTrack(track.url, track.title, track.artist, this.trackPlayerOptions(track));
         }
 
-        // Update UI
+        // Update UI (setActiveTrack also reveals this track's chapter sublist).
         this.setActiveTrack(index);
 
-        // Show/hide chapters for this track
-        if (this.options.expandChapters && this.tracks.length > 1) {
-            this.listElement.querySelectorAll('.wp-chapters').forEach((chapters, i) => {
-                chapters.style.display = i === index ? 'block' : 'none';
-            });
-        }
+        // The chapter index was reset above, so updateActiveChapter() only
+        // repaints on a change: without this, coming back to a track whose
+        // first chapter starts after 0:00 kept the old highlight until
+        // playback crossed a chapter boundary.
+        this.clearChapterHighlights();
+    }
+
+    /**
+     * Remove the active styling / `aria-current` from every chapter row.
+     * @private
+     */
+    clearChapterHighlights() {
+        if (!this.listElement) return;
+        this.listElement.querySelectorAll('.wp-chapter, .wp-chapter-item').forEach((item) => {
+            this.setChapterActive(item, false);
+        });
     }
 
     /**
@@ -1494,13 +1540,16 @@ export class WaveformPlaylist {
                 this.heroTime.textContent = '0:00 / ' + (t.duration || '0:00');
                 this._heroTimeIndex = index;
             }
-            // Reveal the active track's chapter sublist, hide the rest (matched
-            // by data-track-index so it's correct even with sparse chapters).
-            if (this.options.expandChapters && this.tracks.length > 1 && this.listElement) {
-                this.listElement.querySelectorAll('.wp-chapters').forEach((ch) => {
-                    ch.style.display = Number(ch.dataset.trackIndex) === index ? 'block' : 'none';
-                });
-            }
+        }
+
+        // Reveal the active track's chapter sublist, hide the rest — in every
+        // layout (the list layout used to leave the first track's chapters
+        // hidden until a track change). Matched by data-track-index, not
+        // position: not every track has chapters, so sublist N isn't track N.
+        if (this.options.expandChapters && this.tracks.length > 1 && this.listElement) {
+            this.listElement.querySelectorAll('.wp-chapters').forEach((ch) => {
+                ch.style.display = Number(ch.dataset.trackIndex) === index ? 'block' : 'none';
+            });
         }
         // Single track with chapters doesn't need track highlighting
     }

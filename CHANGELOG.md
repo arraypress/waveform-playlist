@@ -65,6 +65,20 @@ project adheres to [Semantic Versioning](https://semver.org/).
   until playback starts and the core's `seekTo()` is a no-op without one, so
   clicking a chapter just played from 0:00. Playback now starts and the seek
   lands when the metadata arrives.
+- **The right chapter list opens for the selected track.** Sublists were
+  matched to tracks by position, so when not every track had chapters the
+  wrong one (or none) was shown — and in the hero layout this overrode the
+  correct, index-matched reveal. The list layout also never revealed the first
+  track's chapters until you changed track.
+- **The play/pause overlay sits on the active row.** Overlays were matched by
+  position, but only tracks with artwork have one, so with an artless track
+  earlier in the list the overlay appeared on the wrong row (or not at all).
+- **No stale chapter highlight when returning to a track.** If its first
+  chapter starts after 0:00, the previously active chapter kept its highlight
+  and `aria-current` until playback crossed a chapter boundary.
+- **Chapters sharing a start time highlight the first, not the last.** Most
+  visibly, several chapters without `data-time` all sit at 0:00 and the last
+  of them was marked as playing.
 
 ### Changed
 
@@ -72,6 +86,10 @@ project adheres to [Semantic Versioning](https://semver.org/).
   is `"false"`.** `data-continuous` and `data-show-chapter-markers` previously
   required the literal `"true"`; a bare `data-continuous` now enables it, as
   `data-expand-chapters` and friends always did.
+- **Chapters are sorted by time.** Out-of-order markup rendered out of order
+  and confused the active-chapter scan. The playlist now also warns
+  (`[WaveformPlaylist] …`) about a chapter with no `data-time` (placed at
+  0:00) and, once the duration is known, one that starts after the track ends.
 
 ## [1.7.4] — 2026-08-11
 
