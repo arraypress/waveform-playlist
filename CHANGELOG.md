@@ -6,6 +6,30 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Playlist options passed to the constructor are honoured.** `expandChapters`,
+  `showDuration` and `showPlayState` were read from `data-*` alone,
+  `showChapterMarkers` was reset to the smart default, and `chapterMarkerColor`
+  was always the attribute or the built-in grey — so `new WaveformPlaylist(el,
+  { showDuration: false })` did nothing. The React/Vue/Svelte wrappers pass
+  exactly these as constructor options, so every one of those props was a
+  no-op. Each now resolves as `data-*` > constructor option > default, like the
+  rest of the surface.
+- **A forwarded `audioMode` no longer produces a playlist that never plays.**
+  `audioMode` was stripped from the container's `data-*` but not from the
+  constructor options, and the wrappers forward it: `audioMode: 'external'`
+  handed the playlist a player that dispatches request-play events nobody
+  answers. The playlist always owns its audio, so the option is now ignored
+  from either source.
+
+### Changed
+
+- **Boolean playlist attributes follow one rule: present means true unless it
+  is `"false"`.** `data-continuous` and `data-show-chapter-markers` previously
+  required the literal `"true"`; a bare `data-continuous` now enables it, as
+  `data-expand-chapters` and friends always did.
+
 ## [1.7.4] — 2026-08-11
 
 ### Fixed

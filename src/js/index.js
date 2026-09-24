@@ -61,13 +61,23 @@ export class WaveformPlaylist {
      *
      * @param {string|HTMLElement} container - Container element or CSS selector
      * @param {Object} [options={}] - Configuration options
-     * @param {string} [options.layout='list'] - Layout style: 'list' or 'minimal'
+     * @param {string} [options.layout='list'] - Layout style: 'list', 'minimal', 'hero' or 'grid'
      * @param {boolean} [options.continuous=false] - Auto-advance to next track
      * @param {boolean} [options.expandChapters=true] - Show chapters under tracks
      * @param {boolean} [options.showDuration=true] - Display track durations
      * @param {boolean|null} [options.showChapterMarkers=null] - Show chapters as waveform markers (null = smart default)
      * @param {string} [options.chapterMarkerColor='rgba(161, 161, 170, 0.85)'] - Default color for chapter markers
      * @param {boolean} [options.showPlayState=true] - Show play/pause icon on active track artwork
+     * @param {boolean} [options.showArtist=true] - Show the now-playing / per-row artist
+     * @param {number} [options.coverSize] - Hero cover size in px
+     * @param {number} [options.thumbnailSize] - Queue thumbnail / grid cover size in px
+     * @param {string} [options.density='comfortable'] - Row density: 'comfortable' or 'compact'
+     * @param {string} [options.coverPosition='left'] - Hero cover position: 'left' or 'top'
+     * @param {string} [options.barPosition='bottom'] - Grid now-playing bar position: 'top' or 'bottom'
+     *
+     * Any other option is forwarded to the embedded WaveformPlayer, including
+     * its callbacks (chained after the playlist's own). `audioMode` is ignored:
+     * the playlist always owns its audio.
      * @throws {Error} If container not found or WaveformPlayer not available
      */
     constructor(container, options = {}) {
@@ -117,47 +127,58 @@ export class WaveformPlaylist {
      */
     parseOptions(providedOptions) {
         const container = this.container;
+        const ds = container.dataset;
         const options = {...providedOptions};
+
+        // The playlist always drives a self-mode player that owns its audio.
+        // The framework wrappers forward `audioMode` from their props, and an
+        // `'external'` player inside a playlist dispatches request-play events
+        // nobody answers — a playlist that never plays. Stripped from BOTH the
+        // constructor options (here) and the container's data-* (below).
+        delete options.audioMode;
 
         // Inherit the player's full `data-*` option surface from the container.
         // data-* values take precedence over constructor options (as before).
         const fromData = this.parsePlayerDataAttributes(container);
         // Strip keys the playlist owns or sets per-track, so a container-level
-        // data-* can never override them: audioMode (the playlist drives a
-        // self-mode player) and the per-track content fields.
+        // data-* can never override them: audioMode and the per-track content
+        // fields.
         ['audioMode', 'url', 'title', 'artist', 'album', 'artwork', 'markers', 'waveform']
             .forEach(key => delete fromData[key]);
         Object.assign(options, fromData);
 
-        // Playlist-specific options
-        options.layout = container.dataset.layout || options.layout || 'list';
-        options.continuous = container.dataset.continuous === 'true' || options.continuous || false;
-        options.expandChapters = container.dataset.expandChapters !== 'false';
-        options.showDuration = container.dataset.showDuration !== 'false';
-        options.showPlayState = container.dataset.showPlayState !== 'false';
+        // Playlist-specific options resolve as data-* > constructor option >
+        // default. These used to read data-* alone, so the React/Vue/Svelte
+        // wrappers — which pass exactly these as constructor options and set
+        // no data-* — had every one of them silently ignored. A present
+        // boolean attribute is true unless it says "false".
+        const flag = (key, fallback) => (ds[key] !== undefined
+            ? ds[key] !== 'false'
+            : (options[key] ?? fallback));
+
+        options.layout = ds.layout || options.layout || 'list';
+        options.continuous = flag('continuous', false);
+        options.expandChapters = flag('expandChapters', true);
+        options.showDuration = flag('showDuration', true);
+        options.showPlayState = flag('showPlayState', true);
         // Hero layout: show the now-playing artist. On by default (useful for
         // mixed-artist playlists); set false for single-artist albums where it
-        // would just repeat. Honours a JS `{ showArtist: false }` too.
-        options.showArtist = options.showArtist !== false && container.dataset.showArtist !== 'false';
+        // would just repeat.
+        options.showArtist = flag('showArtist', true);
 
         // Hero/grid sizing (px) — null falls back to the derived/CSS default.
-        options.coverSize = parseInt(container.dataset.coverSize, 10) || options.coverSize || null;
-        options.thumbnailSize = parseInt(container.dataset.thumbnailSize, 10) || options.thumbnailSize || null;
+        options.coverSize = parseInt(ds.coverSize, 10) || options.coverSize || null;
+        options.thumbnailSize = parseInt(ds.thumbnailSize, 10) || options.thumbnailSize || null;
         // Row density ('comfortable' | 'compact') and hero cover position
         // ('left' | 'top').
-        options.density = container.dataset.density || options.density || 'comfortable';
-        options.coverPosition = container.dataset.coverPosition || options.coverPosition || 'left';
+        options.density = ds.density || options.density || 'comfortable';
+        options.coverPosition = ds.coverPosition || options.coverPosition || 'left';
         // Grid layout: place the now-playing bar above or below the cover grid.
-        options.barPosition = container.dataset.barPosition || options.barPosition || 'bottom';
+        options.barPosition = ds.barPosition || options.barPosition || 'bottom';
 
-        // Smart defaults for chapter markers
-        if (container.dataset.showChapterMarkers !== undefined) {
-            options.showChapterMarkers = container.dataset.showChapterMarkers === 'true';
-        } else {
-            options.showChapterMarkers = null; // Will be determined by content
-        }
-
-        options.chapterMarkerColor = container.dataset.chapterMarkerColor || 'rgba(161, 161, 170, 0.85)';
+        // null = smart default, decided by content in initPlayer().
+        options.showChapterMarkers = flag('showChapterMarkers', null);
+        options.chapterMarkerColor = ds.chapterMarkerColor || options.chapterMarkerColor || 'rgba(161, 161, 170, 0.85)';
 
         return options;
     }

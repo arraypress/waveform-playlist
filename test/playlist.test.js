@@ -477,3 +477,67 @@ describe('playlist options do not leak into the embedded player', () => {
 		expect(playlist.isHero).toBe(true);
 	});
 });
+
+describe('constructor options (framework wrappers pass these, not data-*)', () => {
+	const CHAPTERED = `
+		<div data-track data-url="/a.mp3" data-title="A" data-duration="3:00">
+			<span data-chapter data-time="0:30">Part 1</span>
+		</div>
+		<div data-track data-url="/b.mp3" data-title="B" data-duration="4:00"></div>
+	`;
+
+	it('honours expandChapters: false', () => {
+		const { container } = mount(CHAPTERED, { expandChapters: false });
+		expect(container.querySelector('.wp-chapters')).toBeNull();
+	});
+
+	it('honours showDuration: false', () => {
+		const { container } = mount(CHAPTERED, { showDuration: false });
+		expect(container.querySelector('.wp-duration')).toBeNull();
+	});
+
+	it('honours showPlayState: false', () => {
+		const { container } = mount(TWO_TRACKS, { showPlayState: false });
+		expect(container.querySelector('.wp-artwork-overlay')).toBeNull();
+	});
+
+	it('honours showChapterMarkers and chapterMarkerColor', () => {
+		const { playlist } = mount(CHAPTERED, { showChapterMarkers: true, chapterMarkerColor: 'red' });
+		expect(playlist.options.showChapterMarkers).toBe(true);
+		expect(playlist.player.options.markers).toEqual([{ time: 30, label: 'Part 1', color: 'red' }]);
+	});
+
+	it('lets data-* win over a constructor option', () => {
+		const { playlist } = mountWithData(
+			{ showDuration: 'true', chapterMarkerColor: 'blue' },
+			CHAPTERED,
+			{ showDuration: false, chapterMarkerColor: 'red' }
+		);
+		expect(playlist.options.showDuration).toBe(true);
+		expect(playlist.options.chapterMarkerColor).toBe('blue');
+	});
+
+	it('keeps the documented defaults when neither is given', () => {
+		const { playlist } = mount(CHAPTERED);
+		expect(playlist.options).toMatchObject({
+			expandChapters: true,
+			showDuration: true,
+			showPlayState: true,
+			chapterMarkerColor: 'rgba(161, 161, 170, 0.85)',
+		});
+	});
+
+	it('treats an undefined option (an unset wrapper prop) as absent', () => {
+		const { playlist } = mount(CHAPTERED, { showDuration: undefined, expandChapters: undefined });
+		expect(playlist.options.showDuration).toBe(true);
+		expect(playlist.options.expandChapters).toBe(true);
+	});
+
+	// The wrappers forward `audioMode`; an external-mode player inside a
+	// playlist dispatches request-play events nobody answers and never plays.
+	it('ignores a constructor audioMode: the playlist always owns its audio', () => {
+		const { playlist } = mount(TWO_TRACKS, { audioMode: 'external' });
+		expect(playlist.options.audioMode).toBeUndefined();
+		expect(playlist.player.options.audioMode).toBeUndefined();
+	});
+});
