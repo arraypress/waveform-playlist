@@ -86,6 +86,15 @@ project adheres to [Semantic Versioning](https://semver.org/).
   playlist, Cmd/Ctrl+P (print) went to the previous track, Ctrl+N to the next,
   and Ctrl/Alt+1–9 selected tracks instead of switching tabs. Keys with Ctrl,
   Cmd or Alt held now pass through untouched.
+- **The legacy `data-*` parser (cores without `WaveformPlayer.utils`) is back
+  in step with the core.** It was missing `waveformGradient`, `buttonStyle`,
+  `buttonSize`/`buttonRadius`, `seekHandle`, `bpm`, `artworkPosition`,
+  `seekValueText`, `playPauseLabel`, `speedLabel`, `artworkAlt` and
+  `unknownTrackText`, the `data-style`/`data-color`/`data-theme` aliases, and
+  JSON gradient stops in `data-waveform-color`/`data-progress-color`; it also
+  forwarded empty strings and ignored a present-but-empty boolean attribute
+  where the core does the opposite. A test now compares it key-for-key with the
+  real core's `parseDataAttributes`.
 
 ### Changed
 

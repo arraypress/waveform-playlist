@@ -224,10 +224,24 @@ export class WaveformPlaylist {
     parsePlayerDataAttributesFallback(container) {
         const ds = container.dataset;
         const opts = {};
-        const str = (k, o = k) => { if (ds[k] !== undefined) opts[o] = ds[k]; };
-        const bool = (k, o = k) => {
-            if (ds[k] === 'true') opts[o] = true;
-            else if (ds[k] === 'false') opts[o] = false;
+        // Semantics match the core's parseDataAttributes (test/integration.test.js
+        // checks parity against the real one): an empty string attribute is
+        // absent, and a present boolean attribute is true only when "true".
+        const str = (k, o = k) => { if (ds[k]) opts[o] = ds[k]; };
+        const bool = (k, o = k) => { if (ds[k] !== undefined) opts[o] = ds[k] === 'true'; };
+        // A gradient-capable colour may be a JSON array of stops.
+        const color = (k, o = k) => {
+            if (!ds[k]) return;
+            let value = ds[k];
+            if (value.trim().startsWith('[')) {
+                try { value = JSON.parse(value); } catch (e) { /* keep the raw string, as the core does */ }
+            }
+            opts[o] = value;
+        };
+        // A CSS length: a bare number is px, a unit string is kept verbatim.
+        const length = (k, o = k) => {
+            if (!ds[k]) return;
+            opts[o] = /^\d+(\.\d+)?$/.test(ds[k].trim()) ? parseFloat(ds[k]) : ds[k];
         };
         // Numeric attributes are only forwarded when they actually parsed — a
         // NaN reaching the player sizes its canvas to nothing, which reads as a
@@ -255,21 +269,31 @@ export class WaveformPlaylist {
             else console.warn(`[WaveformPlaylist] Invalid ${k} attribute, expected a JSON array:`, ds[k]);
         };
 
-        // Layout / sizing
-        str('waveformStyle'); int('barWidth'); int('barSpacing'); int('barRadius');
-        str('buttonAlign'); int('height'); int('samples'); str('preload'); str('crossOrigin');
-        // Colours
-        str('colorPreset'); str('waveformColor'); str('progressColor'); str('buttonColor');
-        str('buttonHoverColor'); str('textColor'); str('textSecondaryColor');
+        // Layout / sizing. `data-style` is the shorthand alias; the canonical
+        // long form is read after it, so it wins when both are set.
+        str('style', 'waveformStyle'); str('waveformStyle'); str('waveformGradient');
+        int('barWidth'); int('barSpacing'); int('barRadius');
+        str('buttonAlign'); str('buttonStyle'); length('buttonSize'); length('buttonRadius');
+        int('height'); int('samples'); str('preload'); str('crossOrigin');
+        str('artworkPosition');
+        // Colours. The legacy `data-color` / `data-theme` aliases are read
+        // AFTER their canonical forms, matching the core (where they win).
+        str('colorPreset'); color('waveformColor'); color('progressColor');
+        str('color', 'waveformColor'); str('theme', 'colorPreset');
+        // Only older cores read these; harmless to forward to newer ones.
+        str('buttonColor'); str('buttonHoverColor'); str('textColor'); str('textSecondaryColor');
         str('backgroundColor'); str('borderColor');
         // Feature flags
         bool('autoplay'); bool('showControls'); bool('showInfo'); bool('showTime');
-        bool('showHoverTime'); bool('showBpm', 'showBPM'); bool('singlePlay'); bool('playOnSeek');
+        bool('showHoverTime'); bool('seekHandle'); bool('showBpm', 'showBPM'); int('bpm');
+        bool('singlePlay'); bool('playOnSeek');
         bool('showPlaybackSpeed'); bool('enableMediaSession'); bool('showMarkers'); bool('accessibleSeek');
         // Playback
         float('playbackRate'); jsonArray('playbackRates');
         // Accessibility / labels / icons
-        str('seekLabel'); str('errorText'); str('playIcon'); str('pauseIcon');
+        str('seekLabel'); str('seekValueText'); str('errorText');
+        str('playPauseLabel'); str('speedLabel'); str('artworkAlt'); str('unknownTrackText');
+        str('playIcon'); str('pauseIcon');
 
         return opts;
     }

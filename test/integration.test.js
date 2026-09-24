@@ -195,3 +195,58 @@ describe('real core: preload="none" chapter seek (finding 11)', () => {
 		expect(playlist.player.audio.currentTime).toBe(90);
 	});
 });
+
+describe('legacy fallback parser matches the core (finding 16)', () => {
+	const fallback = (el) => WaveformPlaylist.prototype.parsePlayerDataAttributesFallback.call(null, el);
+	// Per-track content and options the playlist strips/owns — the fallback
+	// deliberately doesn't read them.
+	const NOT_FORWARDED = ['url', 'src', 'title', 'artist', 'album', 'artwork', 'waveform', 'markers', 'audioMode', 'layout'];
+
+	/** Every dataset key a parser reads, via a recording proxy. */
+	function keysRead(parse) {
+		const read = new Set();
+		const dataset = new Proxy({}, { get(_, key) { if (typeof key === 'string') read.add(key); return undefined; } });
+		parse({ dataset });
+		return read;
+	}
+
+	it('reads every data-* key the core reads', () => {
+		const core = keysRead(WaveformPlayer.utils.parseDataAttributes);
+		const ours = keysRead(fallback);
+		const missing = [...core].filter((k) => !ours.has(k) && !NOT_FORWARDED.includes(k));
+		expect(missing).toEqual([]);
+	});
+
+	it('produces the same options as the core', () => {
+		const el = document.createElement('div');
+		Object.assign(el.dataset, {
+			height: '120', samples: '200', preload: 'metadata', crossOrigin: 'anonymous',
+			style: 'bars', waveformStyle: 'mirror', waveformGradient: 'vertical',
+			barWidth: '3', barSpacing: '1', barRadius: '2', buttonAlign: 'right',
+			buttonStyle: 'circle', buttonSize: '64', buttonRadius: '4rem',
+			colorPreset: 'dark', waveformColor: '["#fafafa","#71717a"]', progressColor: '#f00',
+			autoplay: 'false', showControls: 'true', showInfo: '', showTime: 'true',
+			showHoverTime: 'true', seekHandle: 'true', showBpm: 'true', bpm: '128',
+			singlePlay: 'false', playOnSeek: 'true', artworkPosition: 'right',
+			playbackRate: '1.5', showPlaybackSpeed: 'true', playbackRates: '[0.5,1,2]',
+			enableMediaSession: 'true', showMarkers: 'false', accessibleSeek: 'true',
+			seekLabel: 'Scrub', seekValueText: '{current} of {total}', errorText: 'Oops',
+			playPauseLabel: 'Toggle', speedLabel: 'Rate', artworkAlt: 'Cover',
+			unknownTrackText: 'Untitled', playIcon: '<svg></svg>', pauseIcon: '<svg></svg>',
+		});
+		const core = WaveformPlayer.utils.parseDataAttributes(el);
+		NOT_FORWARDED.forEach((k) => delete core[k]);
+		const ours = fallback(el);
+		// The fallback also reads colour attributes that only older cores
+		// understood; compare on the core's keys.
+		const shared = Object.fromEntries(Object.keys(core).map((k) => [k, ours[k]]));
+		expect(shared).toEqual(core);
+	});
+
+	it('applies the legacy aliases like the core', () => {
+		const el = document.createElement('div');
+		Object.assign(el.dataset, { style: 'bars', color: '#123456', theme: 'light' });
+		const core = WaveformPlayer.utils.parseDataAttributes(el);
+		expect(fallback(el)).toMatchObject(core);
+	});
+});
