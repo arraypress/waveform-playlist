@@ -47,6 +47,11 @@ export interface WaveformPlaylistTrack {
     album?: string;
     /** Human-readable duration (e.g. "3:45"). */
     duration?: string;
+    /**
+     * Pre-computed peaks from `data-waveform`: a parsed JSON array, or a
+     * source string (e.g. a `.json` peaks URL) the player resolves itself.
+     */
+    waveform?: number[] | string;
     /** Chapters belonging to this track. */
     chapters: WaveformPlaylistChapter[];
     /** Explicit markers parsed from `data-markers`. */
@@ -56,13 +61,23 @@ export interface WaveformPlaylistTrack {
 /**
  * Configuration options for {@link WaveformPlaylist}.
  *
- * Playlist-specific options are typed explicitly below. Any other option is
- * forwarded straight to the underlying WaveformPlayer instance (e.g. `height`,
- * `waveformStyle`, `colorPreset`, `barWidth`, `autoplay`, ...).
+ * Playlist-specific options are typed explicitly below. Each resolves as
+ * container `data-*` attribute > constructor option > default.
+ *
+ * Any other option is forwarded straight to the underlying WaveformPlayer
+ * instance (e.g. `height`, `waveformStyle`, `colorPreset`, `barWidth`,
+ * `autoplay`, ...), including its callbacks (`onPlay`, `onPause`, `onEnd`,
+ * `onTimeUpdate`, `onLoad`, `onError`, `onNextTrack`, `onPreviousTrack`),
+ * which run after the playlist's own handling. `audioMode` is ignored: the
+ * playlist always owns its audio.
  */
 export interface WaveformPlaylistOptions {
-    /** Layout style. Defaults to `'list'`. */
-    layout?: 'list' | 'minimal';
+    /**
+     * Layout style. Defaults to `'list'`. `'hero'` shows a now-playing unit
+     * (cover + waveform) over a track queue; `'grid'` a cover-art grid with a
+     * now-playing bar.
+     */
+    layout?: 'list' | 'minimal' | 'hero' | 'grid';
     /** Auto-advance to the next track when one ends. Defaults to `false`. */
     continuous?: boolean;
     /** Show chapters under tracks. Defaults to `true`. */
@@ -78,6 +93,24 @@ export interface WaveformPlaylistOptions {
     chapterMarkerColor?: string;
     /** Show a play/pause icon on the active track artwork. Defaults to `true`. */
     showPlayState?: boolean;
+    /**
+     * Show the now-playing / per-row artist. Defaults to `true`; turn off for
+     * single-artist albums where it would only repeat.
+     */
+    showArtist?: boolean;
+    /**
+     * Hero cover size in px. Defaults to the waveform height plus the time
+     * row, so the cover sits flush with the waveform column.
+     */
+    coverSize?: number;
+    /** Hero queue thumbnail / grid cover size in px. Defaults to the CSS value. */
+    thumbnailSize?: number;
+    /** Row density for every layout. Defaults to `'comfortable'`. */
+    density?: 'comfortable' | 'compact';
+    /** Hero / grid cover position relative to the waveform. Defaults to `'left'`. */
+    coverPosition?: 'left' | 'top';
+    /** Grid layout: now-playing bar above or below the covers. Defaults to `'bottom'`. */
+    barPosition?: 'top' | 'bottom';
 
     /** Any additional WaveformPlayer option is passed through. */
     [option: string]: unknown;
@@ -119,7 +152,10 @@ export class WaveformPlaylist {
 
     /**
      * Seek to a chapter within a track. If the chapter lives on a different
-     * track, the track is loaded first and the seek runs once it is ready.
+     * track, the track is loaded first and the seek runs once that track has
+     * loaded; it is dropped if the load fails or another track is selected
+     * first. When the duration isn't known yet (e.g. `preload: 'none'`),
+     * playback starts and the seek lands when the metadata arrives.
      * @param trackIndex Track index.
      * @param time Time in seconds to seek to.
      */
@@ -140,7 +176,11 @@ export class WaveformPlaylist {
     /** Get all parsed tracks. */
     getTracks(): WaveformPlaylistTrack[];
 
-    /** Destroy the playlist, remove listeners, and restore original markup. */
+    /**
+     * Destroy the playlist: remove its listeners and generated DOM, restore the
+     * original `[data-track]` markup in place, and drop the classes and
+     * auto-init flag it added, so the container can be initialised again.
+     */
     destroy(): void;
 
     /**

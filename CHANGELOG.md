@@ -95,6 +95,12 @@ project adheres to [Semantic Versioning](https://semver.org/).
   forwarded empty strings and ignored a present-but-empty boolean attribute
   where the core does the opposite. A test now compares it key-for-key with the
   real core's `parseDataAttributes`.
+- **Types cover the whole playlist option surface.** `layout` was typed
+  `'list' | 'minimal'` although `'hero'` and `'grid'` ship, and `showArtist`,
+  `coverSize`, `thumbnailSize`, `density`, `coverPosition` and `barPosition`
+  were untyped, so the framework wrappers couldn't pass them without a cast.
+  Parsed tracks also gain `waveform`. A test keeps `index.d.ts` in step with the
+  runtime's own option list.
 
 ### Changed
 
