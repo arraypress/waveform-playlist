@@ -37,6 +37,7 @@ beforeEach(() => {
 	MockWaveformPlayer.instances = [];
 	MockWaveformPlayer.failingUrls = new Set();
 	MockWaveformPlayer.durations = {};
+	MockWaveformPlayer.loadDelays = {};
 });
 
 afterEach(() => {
@@ -237,10 +238,13 @@ describe('single track with chapters', () => {
 		});
 	});
 
-	it('seeks to a chapter when its row is activated', () => {
+	it('seeks to a chapter when its row is activated', async () => {
+		MockWaveformPlayer.durations['/audio/show.mp3'] = 300;
 		const { container, playlist } = mount(SINGLE_WITH_CHAPTERS);
 		container.querySelectorAll('.wp-chapter-item')[2].click();
+		await settle(); // the seek lands once the duration is known
 		expect(playlist.player.calls.seekTo).toContain(180);
+		expect(playlist.player.audio.currentTime).toBe(180);
 	});
 
 	it('reflects the active chapter with aria-current as playback advances', () => {
@@ -673,5 +677,187 @@ describe('track metadata does not leak between tracks', () => {
 		expect(art.getAttribute('src')).toBe('/art/c.jpg');
 		// Sits beneath the play/pause overlay, not over it.
 		expect(art.nextElementSibling.classList.contains('wp-hero-overlay')).toBe(true);
+	});
+});
+
+const THREE_TRACKS = `
+	<div data-track data-url="/a.mp3" data-title="A"></div>
+	<div data-track data-url="/b.mp3" data-title="B">
+		<span data-chapter data-time="0:30">B part</span>
+	</div>
+	<div data-track data-url="/c.mp3" data-title="C"></div>
+`;
+
+describe('destroy() leaves the container re-initialisable', () => {
+	// The React/Vue/Svelte wrappers render tracks as children and destroy +
+	// reconstruct on a prop change; destroy() used to wipe innerHTML BEFORE
+	// restoring the tracks, so the rebuilt playlist found none.
+	it('keeps the original [data-track] elements, visible and in place', () => {
+		const { container, playlist } = mount(TWO_TRACKS);
+		const originals = [...container.querySelectorAll('[data-track]')];
+		playlist.destroy();
+
+		const after = [...container.querySelectorAll('[data-track]')];
+		expect(after).toEqual(originals);
+		after.forEach((el) => expect(el.style.display).toBe(''));
+		expect(container.children.length).toBe(2); // nothing generated left behind
+	});
+
+	it('restores an inline display the author had set', () => {
+		const { container, playlist } = mount('<div data-track data-url="/a.mp3" style="display: grid"></div>');
+		playlist.destroy();
+		expect(container.querySelector('[data-track]').style.display).toBe('grid');
+	});
+
+	it('removes every class it added but keeps the author\'s', () => {
+		const container = document.createElement('div');
+		container.className = 'mine';
+		container.innerHTML = TWO_TRACKS;
+		document.body.appendChild(container);
+		const playlist = new WaveformPlaylist(container, {
+			layout: 'grid', density: 'compact', coverPosition: 'top', showArtist: false,
+		});
+		expect(container.classList.contains('wp-grid-layout')).toBe(true);
+		playlist.destroy();
+		expect([...container.classList]).toEqual(['mine']);
+	});
+
+	it('can be constructed again on the same container', () => {
+		const { container, playlist } = mount(TWO_TRACKS, { layout: 'hero' });
+		playlist.destroy();
+
+		const again = new WaveformPlaylist(container, { layout: 'hero' });
+		created.push(again);
+		expect(again.tracks).toHaveLength(2);
+		expect(container.querySelectorAll('.wp-hero')).toHaveLength(1);
+	});
+
+	it('clears the auto-init flag so WaveformPlaylist.init() picks it up again', () => {
+		const container = document.createElement('div');
+		container.setAttribute('data-waveform-playlist', '');
+		// What autoInit() leaves on an element it has built.
+		container.dataset.waveformPlaylistInitialized = 'true';
+		container.innerHTML = TWO_TRACKS;
+		document.body.appendChild(container);
+		const playlist = new WaveformPlaylist(container);
+
+		playlist.destroy();
+		expect(container.hasAttribute('data-waveform-playlist-initialized')).toBe(false);
+
+		const before = MockWaveformPlayer.instances.length;
+		WaveformPlaylist.init();
+		expect(MockWaveformPlayer.instances.length).toBe(before + 1);
+		expect(container.querySelectorAll('.wp-item')).toHaveLength(2);
+		// Tear the auto-built instance down through its keyboard-free surface.
+		MockWaveformPlayer.instances.at(-1).destroy();
+	});
+});
+
+describe('cross-track chapter seek waits for THAT track to load', () => {
+	afterEach(() => { vi.useRealTimers(); });
+
+	// The core emits waveformplayer:ready once, ~100ms after construction, and
+	// never after a load. A deep link that seeks into another track straight
+	// away used to take that event as "loaded" and seek with no duration.
+	it('seeks once the new track has loaded, not on the construction ready event', async () => {
+		vi.useFakeTimers();
+		MockWaveformPlayer.loadDelays['/b.mp3'] = 300; // slower than the 100ms ready event
+		const { playlist } = mount(THREE_TRACKS);
+		playlist.seekToChapter(1, 60);
+
+		await vi.advanceTimersByTimeAsync(500);
+		expect(playlist.player.audio.src).toBe('/b.mp3');
+		expect(playlist.player.audio.currentTime).toBe(60);
+	});
+
+	it('drops the pending seek when the target track fails to load', async () => {
+		MockWaveformPlayer.failingUrls.add('/b.mp3');
+		const { playlist } = mount(THREE_TRACKS);
+		playlist.seekToChapter(1, 30);
+		await settle();
+
+		playlist.selectTrack(2); // C loads fine; B's seek must not land on it
+		await settle();
+		expect(playlist.player.audio.src).toBe('/c.mp3');
+		expect(playlist.player.audio.currentTime).toBe(0);
+		expect(playlist.player.calls.seekTo).toEqual([]);
+	});
+
+	it('drops the pending seek when another track is selected first', async () => {
+		const { playlist } = mount(THREE_TRACKS);
+		playlist.seekToChapter(1, 30);
+		playlist.selectTrack(2);
+		await settle();
+		expect(playlist.player.audio.src).toBe('/c.mp3');
+		expect(playlist.player.calls.seekTo).toEqual([]);
+	});
+
+	it('still runs the user onError when a load fails', async () => {
+		MockWaveformPlayer.failingUrls.add('/b.mp3');
+		const onError = vi.fn();
+		const { playlist } = mount(THREE_TRACKS, { onError });
+		playlist.seekToChapter(1, 30);
+		await settle();
+		expect(onError).toHaveBeenCalledTimes(1);
+	});
+
+	it('leaves no document listener behind after destroy()', async () => {
+		const added = [];
+		const removed = [];
+		const add = vi.spyOn(document, 'addEventListener').mockImplementation(function (type, fn, opts) {
+			added.push(fn);
+			return EventTarget.prototype.addEventListener.call(this, type, fn, opts);
+		});
+		const rm = vi.spyOn(document, 'removeEventListener').mockImplementation(function (type, fn, opts) {
+			removed.push(fn);
+			return EventTarget.prototype.removeEventListener.call(this, type, fn, opts);
+		});
+		try {
+			MockWaveformPlayer.failingUrls.add('/b.mp3');
+			const { playlist } = mount(THREE_TRACKS);
+			playlist.seekToChapter(1, 30);
+			await settle();
+			playlist.destroy();
+			expect(added.filter((fn) => !removed.includes(fn))).toEqual([]);
+		} finally {
+			add.mockRestore();
+			rm.mockRestore();
+		}
+	});
+});
+
+describe('chapter seeks with preload="none"', () => {
+	// preload="none" leaves the duration unknown until playback starts, and the
+	// core's seekTo() is a no-op without one.
+	it('seeks within the current track once metadata arrives', async () => {
+		const { container, playlist } = mountWithData({ preload: 'none' }, SINGLE_WITH_CHAPTERS);
+		await settle();
+		expect(Number.isNaN(playlist.player.audio.duration)).toBe(true);
+
+		MockWaveformPlayer.durations['/audio/show.mp3'] = 300;
+		container.querySelectorAll('.wp-chapter-item')[1].click();
+		await settle();
+		expect(playlist.player.audio.currentTime).toBe(90);
+		expect(playlist.player.isPlaying).toBe(true);
+	});
+
+	it('seeks into another track once its metadata arrives', async () => {
+		const { playlist } = mountWithData({ preload: 'none' }, THREE_TRACKS);
+		playlist.seekToChapter(1, 30);
+		await settle();
+		await settle();
+		expect(playlist.player.audio.src).toBe('/b.mp3');
+		expect(playlist.player.audio.currentTime).toBe(30);
+	});
+
+	it('abandons the metadata wait when the track changes', async () => {
+		const { container, playlist } = mountWithData({ preload: 'none' }, SINGLE_WITH_CHAPTERS.replace('</div>', '</div><div data-track data-url="/z.mp3"></div>'));
+		await settle();
+		container.querySelectorAll('.wp-chapter')[2].click(); // 3:00 on track 0
+		playlist.selectTrack(1);
+		await settle();
+		await settle();
+		expect(playlist.player.audio.src).toBe('/z.mp3');
+		expect(playlist.player.audio.currentTime).toBe(0);
 	});
 });

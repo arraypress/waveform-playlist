@@ -39,6 +39,32 @@ project adheres to [Semantic Versioning](https://semver.org/).
   the previous cover, and a hero playlist whose first track had no artwork
   never showed any cover at all. The art is now created on demand and hidden
   for artless tracks.
+- **`destroy()` leaves the container as it found it.** It emptied the
+  container *before* restoring the original `[data-track]` elements, so they
+  were gone — and the React/Vue/Svelte wrappers, which render the tracks as
+  children and destroy + rebuild on a prop change, rebuilt an empty playlist.
+  It now removes only what the playlist generated, un-hides the tracks in
+  place (restoring any inline `display` they had), removes every layout class
+  it added (`wp-hero-layout`, `wp-grid-layout`, `wp-density-compact`,
+  `wp-cover-top`, `wp-no-artist`, …) while keeping the author's own, and
+  clears `data-waveform-playlist-initialized` so `WaveformPlaylist.init()` can
+  rebuild it.
+- **A chapter seek into another track waits for that track to load.** It
+  treated any `waveformplayer:ready` as "loaded", but the core emits that once,
+  ~100ms after construction, never after a load — so a deep link such as
+  `seekToChapter(1, 60)` right after construction seeked before track 1 had a
+  duration and silently stayed at 0:00. It now waits for the player's `onLoad`
+  for that track.
+- **A pending chapter seek no longer lands on the wrong track.** When the
+  target track failed to load, the waiting seek (and a document-level listener)
+  stayed armed forever and fired on the next track that did load — jumping it
+  to the failed track's chapter time — and survived `destroy()`. There is now
+  a single pending seek, cancelled by a load error, by selecting another track,
+  and by `destroy()`. Your `onError` still runs.
+- **Chapter seeks work with `data-preload="none"`.** The duration is unknown
+  until playback starts and the core's `seekTo()` is a no-op without one, so
+  clicking a chapter just played from 0:00. Playback now starts and the seek
+  lands when the metadata arrives.
 
 ### Changed
 

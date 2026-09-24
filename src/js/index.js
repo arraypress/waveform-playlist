@@ -109,6 +109,9 @@ export class WaveformPlaylist {
         this.isGrid = this.options.layout === 'grid';
         this.isPlaying = false;
         this.keydownHandler = null;
+        // The single post-load action in flight (a chapter seek waiting on a
+        // track load or on metadata); see loadTrackAt() / seekAndPlay().
+        this.pending = null;
 
         // Parse tracks from markup
         this.parseTracks();
@@ -373,37 +376,45 @@ export class WaveformPlaylist {
      * @private
      */
     init() {
+        // Everything init() adds to the container is recorded, so destroy()
+        // can remove exactly that and leave the author's markup (the
+        // [data-track] elements a framework wrapper rendered) in place.
+        this.ownNodes = [];
+        this.ownClasses = [];
+
         // Add classes to container
-        this.container.classList.add('waveform-playlist');
+        this.addOwnClass('waveform-playlist');
         if (this.isMinimal) {
-            this.container.classList.add('wp-minimal');
+            this.addOwnClass('wp-minimal');
         }
         // Hero + grid share the "now playing" hero unit; they differ only in the
         // browser below it (a queue list vs a cover-art grid).
         if (this.isHero || this.isGrid) {
-            this.container.classList.add('wp-hero-layout');
+            this.addOwnClass('wp-hero-layout');
         }
         if (this.isGrid) {
-            this.container.classList.add('wp-grid-layout');
+            this.addOwnClass('wp-grid-layout');
         }
         // Density applies to every layout (the compact CSS covers list rows,
         // queue rows, grid cards and chapters alike).
         if (this.options.density === 'compact') {
-            this.container.classList.add('wp-density-compact');
+            this.addOwnClass('wp-density-compact');
         }
         if ((this.isHero || this.isGrid) && this.options.coverPosition === 'top') {
-            this.container.classList.add('wp-cover-top');
+            this.addOwnClass('wp-cover-top');
         }
         // `showArtist` also applies to the list/minimal layouts: hero/grid skip
         // rendering the artist element, while list relies on this class to hide
         // the now-playing + per-row artists via CSS.
         if (!this.options.showArtist) {
-            this.container.classList.add('wp-no-artist');
+            this.addOwnClass('wp-no-artist');
         }
 
-        // Hide original track elements
+        // Hide original track elements, remembering any inline display the
+        // author set so destroy() can put it back.
         this.tracks.forEach(track => {
             if (track.element) {
+                track.prevDisplay = track.element.style.display;
                 track.element.style.display = 'none';
             }
         });
@@ -441,7 +452,7 @@ export class WaveformPlaylist {
                 this.createHeroQueue();
             }
         } else {
-            this.container.appendChild(playerContainer);
+            this.appendOwn(playerContainer);
 
             // Create appropriate UI based on content
             if (this.tracks.length === 1 && this.tracks[0].chapters.length > 0) {
@@ -461,6 +472,28 @@ export class WaveformPlaylist {
 
         // Bind keyboard shortcuts
         this.bindKeyboard();
+    }
+
+    /**
+     * Append a generated node to the container and record it for destroy().
+     * @private
+     * @param {HTMLElement} node
+     */
+    appendOwn(node) {
+        this.container.appendChild(node);
+        this.ownNodes.push(node);
+    }
+
+    /**
+     * Add a class to the container and record it for destroy() — unless the
+     * author already set it, in which case it isn't ours to remove.
+     * @private
+     * @param {string} name
+     */
+    addOwnClass(name) {
+        if (this.container.classList.contains(name)) return;
+        this.container.classList.add(name);
+        this.ownClasses.push(name);
     }
 
     /**
@@ -538,7 +571,7 @@ export class WaveformPlaylist {
         main.appendChild(meta);
 
         hero.appendChild(main);
-        this.container.appendChild(hero);
+        this.appendOwn(hero);
     }
 
     /**
@@ -621,7 +654,7 @@ export class WaveformPlaylist {
         bar.appendChild(meta);
 
         if (this.options.barPosition === 'top') bar.classList.add('wp-now-bar-top');
-        this.container.appendChild(bar);
+        this.appendOwn(bar);
     }
 
     /**
@@ -713,7 +746,7 @@ export class WaveformPlaylist {
         });
 
         listContainer.appendChild(list);
-        this.container.appendChild(listContainer);
+        this.appendOwn(listContainer);
         this.listElement = list;
     }
 
@@ -782,7 +815,7 @@ export class WaveformPlaylist {
             gridContainer.appendChild(card);
         });
 
-        this.container.appendChild(gridContainer);
+        this.appendOwn(gridContainer);
         this.listElement = gridContainer;
     }
 
@@ -924,6 +957,10 @@ export class WaveformPlaylist {
         };
 
         return {
+            onLoad: chain('onLoad', (player) => this.resolvePending(player)),
+            // The core never calls onLoad for a failed load, so a seek waiting
+            // on it would otherwise stay armed and fire on the next track.
+            onError: chain('onError', () => this.cancelPending()),
             onEnd: chain('onEnd', () => this.onTrackEnd()),
             onNextTrack: chain('onNextTrack', () => this.nextTrack()),
             onPreviousTrack: chain('onPreviousTrack', () => this.previousTrack()),
@@ -1080,18 +1117,13 @@ export class WaveformPlaylist {
             label.textContent = chapter.label;
             item.appendChild(label);
 
-            this.makeActivatable(item, () => {
-                this.player.seekTo(chapter.time);
-                if (!this.player.isPlaying) {
-                    this.player.play();
-                }
-            });
+            this.makeActivatable(item, () => this.seekToChapter(0, chapter.time));
 
             list.appendChild(item);
         });
 
         listContainer.appendChild(list);
-        this.container.appendChild(listContainer);
+        this.appendOwn(listContainer);
         this.listElement = list;
     }
 
@@ -1251,7 +1283,7 @@ export class WaveformPlaylist {
         });
 
         listContainer.appendChild(list);
-        this.container.appendChild(listContainer);
+        this.appendOwn(listContainer);
         this.listElement = list;
     }
 
@@ -1276,7 +1308,7 @@ export class WaveformPlaylist {
             controls.appendChild(btn);
         });
 
-        this.container.appendChild(controls);
+        this.appendOwn(controls);
         this.listElement = controls;
     }
 
@@ -1286,11 +1318,34 @@ export class WaveformPlaylist {
      * @param {number} index - Track index to select
      */
     selectTrack(index) {
+        this.loadTrackAt(index, null);
+    }
+
+    /**
+     * Select and load a track, optionally running `onLoaded` once THAT track
+     * has loaded.
+     *
+     * The callback is registered before loadTrack() is called: the core can
+     * report a load synchronously (preload="none" with inline peaks skips
+     * every await), so registering afterwards could miss it.
+     *
+     * @private
+     * @param {number} index - Track index to select
+     * @param {Function|null} onLoaded - Run after the track's onLoad
+     */
+    loadTrackAt(index, onLoaded) {
         if (index < 0 || index >= this.tracks.length) return;
 
         const track = this.tracks[index];
         this.currentTrackIndex = index;
         this.currentChapterIndex = -1;
+
+        // Whatever was waiting on the previous track is void now: its seek
+        // time belongs to that track, not this one.
+        this.cancelPending();
+        if (onLoaded) {
+            this.pending = { url: track.url, onLoad: onLoaded };
+        }
 
         // Load track into player. Callbacks were set at construction and
         // survive the core's option merge, so only per-track data travels.
@@ -1316,88 +1371,88 @@ export class WaveformPlaylist {
      * @param {number} time - Time in seconds to seek to
      */
     seekToChapter(trackIndex, time) {
-        // Same track - seek straight away.
+        if (!this.player) return;
+
+        // Same track - seek straight away (or as soon as the duration is known).
         if (trackIndex === this.currentTrackIndex) {
-            this.player.seekTo(time);
-            if (!this.player.isPlaying) {
-                this.player.play();
-            }
+            this.cancelPending();
+            this.seekAndPlay(time);
             return;
         }
 
-        if (trackIndex < 0 || trackIndex >= this.tracks.length) return;
-
-        // Cross-track: load the new track, then seek once it is actually ready.
-        // Waiting on the core player's load signal (instead of a fixed
-        // setTimeout) keeps the seek from being lost on slow loads and from
-        // double-firing on fast ones. Register the listener BEFORE selectTrack()
-        // kicks off the async load so we never miss the ready signal.
-        this.whenPlayerReady(() => {
-            this.player.seekTo(time);
-            if (!this.player.isPlaying) {
-                this.player.play();
-            }
-        });
-
-        this.selectTrack(trackIndex);
+        // Cross-track: load the new track, then seek once it has loaded. The
+        // signal is the core's onLoad for THIS track — not
+        // `waveformplayer:ready`, which the core emits once ~100ms after
+        // construction and never after a load, so a deep link that seeks into
+        // another track straight away used to seek before it had a duration
+        // (a silent no-op). A load that fails, or a different track being
+        // selected first, cancels the seek instead of leaving it to land on
+        // whichever track loads next.
+        this.loadTrackAt(trackIndex, () => this.seekAndPlay(time));
     }
 
     /**
-     * Run a callback exactly once, when the core player has finished
-     * (re)loading its current track.
+     * Seek the current track to `time` and make sure it's playing.
      *
-     * Listens for whichever load signal the installed core version exposes so
-     * the seek is deterministic across versions:
-     *   - the `waveformplayer:ready` CustomEvent (detail: { player, url })
-     *     the core dispatches after init/load, and
-     *   - the `onLoad(player)` option the core invokes after a load.
-     * Whichever fires first wins and the other hook is torn down, so the
-     * callback never runs twice.
+     * The core's seekTo() is a no-op until the duration is known, which with
+     * `preload="none"` is not until playback starts. In that case playback is
+     * started — which fetches the metadata — and the seek runs on
+     * `loadedmetadata` (cancelled like any other pending action).
      *
      * @private
-     * @param {Function} callback - Invoked once the player's track is ready
+     * @param {number} time - Time in seconds
      */
-    whenPlayerReady(callback) {
-        if (!this.player) return;
+    seekAndPlay(time) {
+        const player = this.player;
+        if (!player) return;
 
-        let done = false;
-        const prevOnLoad = this.player.options ? this.player.options.onLoad : null;
-
-        const onReady = (e) => {
-            // Ignore ready events from other players sharing the document.
-            if (e.detail && e.detail.player && e.detail.player !== this.player) return;
-            finish();
-        };
-
-        const finish = () => {
-            if (done) return;
-            done = true;
-
-            document.removeEventListener('waveformplayer:ready', onReady, true);
-            if (this.player && this.player.container) {
-                this.player.container.removeEventListener('waveformplayer:ready', onReady, true);
-            }
-            if (this.player && this.player.options) {
-                this.player.options.onLoad = prevOnLoad;
-            }
-
-            callback();
-        };
-
-        // Capture-phase listeners on both document and the player container so we
-        // catch the event whether or not the core bubbles it.
-        document.addEventListener('waveformplayer:ready', onReady, true);
-        if (this.player.container) {
-            this.player.container.addEventListener('waveformplayer:ready', onReady, true);
-        }
-
-        // Fallback for cores that only expose the onLoad option (no event).
-        if (this.player.options) {
-            this.player.options.onLoad = (player) => {
-                if (typeof prevOnLoad === 'function') prevOnLoad(player);
-                finish();
+        const audio = player.audio;
+        if (audio && !(audio.duration > 0) && typeof audio.addEventListener === 'function') {
+            const pending = {
+                cleanup: () => audio.removeEventListener('loadedmetadata', onMetadata)
             };
+            const onMetadata = () => {
+                if (this.pending !== pending) return;
+                this.cancelPending();
+                player.seekTo(time);
+            };
+            this.cancelPending();
+            this.pending = pending;
+            audio.addEventListener('loadedmetadata', onMetadata);
+            if (!player.isPlaying) player.play();
+            return;
         }
+
+        player.seekTo(time);
+        if (!player.isPlaying) {
+            player.play();
+        }
+    }
+
+    /**
+     * Resolve the pending post-load action, if the load that just finished is
+     * the one it was waiting for. Wired to the player's `onLoad`.
+     * @private
+     * @param {Object} [player] - The player that loaded.
+     */
+    resolvePending(player) {
+        const pending = this.pending;
+        if (!pending || !pending.onLoad) return;
+        const url = player && player.options ? player.options.url : undefined;
+        if (url !== undefined && url !== pending.url) return;
+        this.pending = null;
+        pending.onLoad();
+    }
+
+    /**
+     * Drop the pending post-load action (there is only ever one). Called when
+     * another track is selected, when a load fails, and on destroy().
+     * @private
+     */
+    cancelPending() {
+        const pending = this.pending;
+        this.pending = null;
+        if (pending && pending.cleanup) pending.cleanup();
     }
 
     /**
@@ -1664,25 +1719,37 @@ export class WaveformPlaylist {
             this.keydownHandler = null;
         }
 
+        // A chapter seek still waiting on a load must not outlive the player.
+        this.cancelPending();
+
         // Destroy player instance
         if (this.player) {
             this.player.destroy();
         }
 
-        // Clear container
-        this.container.innerHTML = '';
-        this.container.classList.remove('waveform-playlist', 'wp-minimal');
+        // Remove only what init() generated. This used to wipe innerHTML
+        // before "restoring" the track elements — which were gone by then —
+        // so a framework wrapper that destroys and rebuilds on a prop change
+        // (with the tracks rendered as its children) rebuilt an empty playlist.
+        (this.ownNodes || []).forEach(node => node.remove());
+        this.container.classList.remove(...(this.ownClasses || []));
+        // autoInit()'s claim flag, so WaveformPlaylist.init() can rebuild it.
+        delete this.container.dataset.waveformPlaylistInitialized;
 
-        // Restore original elements
+        // Restore original elements, in place
         this.tracks.forEach(track => {
             if (track.element) {
-                track.element.style.display = '';
+                track.element.style.display = track.prevDisplay || '';
             }
         });
 
         // Clear references
         this.player = null;
         this.listElement = null;
+        this.ownNodes = [];
+        this.ownClasses = [];
+        this.heroCover = this.heroArt = this.heroIcon = null;
+        this.heroTitle = this.heroSub = this.heroTime = null;
         this.tracks = [];
     }
 }

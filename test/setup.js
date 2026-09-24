@@ -82,6 +82,8 @@ export class MockWaveformPlayer {
 		this.audio.currentTime = 0;
 
 		await Promise.resolve();
+		const delay = MockWaveformPlayer.loadDelays[url];
+		if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
 		// A newer load superseded this one; the core's metadata handler would
 		// resolve on the NEW track's metadata, so just let the newer one report.
 		if (seq !== this._loadSeq || this.destroyed) return;
@@ -172,5 +174,7 @@ MockWaveformPlayer.instances = [];
 MockWaveformPlayer.failingUrls = new Set();
 /** Per-URL duration once metadata loads; defaults to 100s. */
 MockWaveformPlayer.durations = {};
+/** Per-URL extra load latency in ms (a slow origin). */
+MockWaveformPlayer.loadDelays = {};
 
 window.WaveformPlayer = MockWaveformPlayer;
