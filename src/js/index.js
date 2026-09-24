@@ -445,9 +445,10 @@ export class WaveformPlaylist {
 
         // Hide original track elements, remembering any inline display the
         // author set so destroy() can put it back.
+        this.trackDisplay = new Map();
         this.tracks.forEach(track => {
             if (track.element) {
-                track.prevDisplay = track.element.style.display;
+                this.trackDisplay.set(track.element, track.element.style.display);
                 track.element.style.display = 'none';
             }
         });
@@ -1822,7 +1823,7 @@ export class WaveformPlaylist {
         // Restore original elements, in place
         this.tracks.forEach(track => {
             if (track.element) {
-                track.element.style.display = track.prevDisplay || '';
+                track.element.style.display = (this.trackDisplay && this.trackDisplay.get(track.element)) || '';
             }
         });
 
@@ -1831,6 +1832,7 @@ export class WaveformPlaylist {
         this.listElement = null;
         this.ownNodes = [];
         this.ownClasses = [];
+        this.trackDisplay = null;
         this.heroCover = this.heroArt = this.heroIcon = null;
         this.heroTitle = this.heroSub = this.heroTime = null;
         this.tracks = [];
