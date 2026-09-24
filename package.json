@@ -61,6 +61,7 @@
     "@arraypress/waveform-player": "^1.7.2"
   },
   "devDependencies": {
+    "@arraypress/waveform-player": "^1.27.1",
     "esbuild": "^0.28.1",
     "jsdom": "^29.1.1",
     "vitest": "^4.1.9"
