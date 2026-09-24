@@ -310,6 +310,32 @@ export class WaveformPlaylist {
     }
 
     /**
+     * Parse a track's `data-waveform` peaks.
+     *
+     * A JSON array is parsed here so a typo costs that one track its peaks
+     * (the player then decodes the audio) rather than reaching the player as
+     * a string; anything else — a `.json` peaks URL, or a comma-separated
+     * list — is passed through for the core to resolve, which it already does.
+     *
+     * @private
+     * @param {string|undefined} raw - Raw `data-waveform` value.
+     * @returns {number[]|string|undefined} Peaks, a peaks source, or undefined.
+     */
+    parseWaveform(raw) {
+        const value = (raw || '').trim();
+        if (!value) return undefined;
+        if (!value.startsWith('[')) return value;
+
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (e) { /* warned below */ }
+
+        console.warn('[WaveformPlaylist] Invalid waveform attribute, expected a JSON array of peaks or a peaks URL:', raw);
+        return undefined;
+    }
+
+    /**
      * Parse tracks and chapters from container markup
      * @private
      */
@@ -334,6 +360,7 @@ export class WaveformPlaylist {
                 artwork: el.dataset.artwork,
                 album: el.dataset.album,
                 duration: el.dataset.duration,
+                waveform: this.parseWaveform(el.dataset.waveform),
                 chapters: chapters,
                 // Parse explicit markers if provided (separate from chapters)
                 markers: this.parseMarkers(el.dataset.markers)
@@ -461,16 +488,6 @@ export class WaveformPlaylist {
         cover.style.height = coverSize;
         cover.setAttribute('aria-label', 'Play');
 
-        if (first.artwork) {
-            const img = document.createElement('img');
-            img.className = 'wp-hero-art';
-            img.alt = '';
-            img.src = first.artwork;
-            applyArtFallback(img);
-            cover.appendChild(img);
-            this.heroArt = img;
-        }
-
         const overlay = document.createElement('span');
         overlay.className = 'wp-hero-overlay';
         const icon = document.createElement('i');
@@ -481,6 +498,7 @@ export class WaveformPlaylist {
         cover.addEventListener('click', () => this.togglePlay());
         this.heroCover = cover;
         this.heroIcon = icon;
+        this.setHeroArt(first.artwork);
         hero.appendChild(cover);
 
         // Waveform stage + time readout.
@@ -521,6 +539,38 @@ export class WaveformPlaylist {
 
         hero.appendChild(main);
         this.container.appendChild(hero);
+    }
+
+    /**
+     * Show `src` on the hero cover, or hide the cover art when the track has
+     * none. The `<img>` is created on first use: it used to exist only when
+     * the FIRST track had artwork, so a playlist opening on an artless track
+     * never showed any later cover — and one that did kept showing the
+     * previous cover on an artless track. No-op without a hero cover (grid).
+     * @private
+     * @param {string|undefined} src - Artwork URL.
+     */
+    setHeroArt(src) {
+        if (!this.heroCover) return;
+
+        if (src) {
+            if (!this.heroArt) {
+                const img = document.createElement('img');
+                img.className = 'wp-hero-art';
+                img.alt = '';
+                applyArtFallback(img);
+                // Beneath the play/pause overlay.
+                this.heroCover.insertBefore(img, this.heroCover.firstChild);
+                this.heroArt = img;
+            }
+            this.heroArt.style.display = '';
+            if (this.heroArt.getAttribute('src') !== src) this.heroArt.src = src;
+        } else if (this.heroArt) {
+            this.heroArt.style.display = 'none';
+            // Removing the attribute (rather than src = '') fires no error
+            // event, so the broken-art fallback doesn't kick in.
+            this.heroArt.removeAttribute('src');
+        }
     }
 
     /**
@@ -775,21 +825,9 @@ export class WaveformPlaylist {
     initPlayer(container) {
         const firstTrack = this.tracks[0];
 
-        // Determine if we should show chapter markers on waveform
-        let markers = firstTrack.markers;
-
         // Smart default: Show chapter markers for single track with chapters
         if (this.options.showChapterMarkers === null) {
             this.options.showChapterMarkers = (this.tracks.length === 1 && firstTrack.chapters.length > 0);
-        }
-
-        // Convert chapters to markers if needed
-        if (this.options.showChapterMarkers && firstTrack.chapters.length > 0 && markers.length === 0) {
-            markers = firstTrack.chapters.map(ch => ({
-                time: ch.time,
-                label: ch.label,
-                color: ch.color || this.options.chapterMarkerColor
-            }));
         }
 
         // Merge container options with first track data, minus the options the
@@ -803,38 +841,14 @@ export class WaveformPlaylist {
             url: firstTrack.url,
             title: firstTrack.title,
             artist: firstTrack.artist,
-            artwork: firstTrack.artwork,
-            album: firstTrack.album,
-            markers: markers,
+            ...this.trackPlayerOptions(firstTrack),
             // Hero layout drives a waveform-ONLY player: the cover (with its
             // play/pause overlay), the time readout and the queue are this
             // component's own chrome, so suppress the player's button + info row.
             ...((this.isHero || this.isGrid) ? { showControls: false, showInfo: false } : {}),
-            onEnd: () => this.onTrackEnd(),
-            onNextTrack: () => this.nextTrack(),
-            onPreviousTrack: () => this.previousTrack(),
-            onTimeUpdate: (current, total) => {
-                this.updateActiveChapter(current);
-                if (this.isHero || this.isGrid) this.updateHeroTime(current, total);
-            },
-            onPlay: () => {
-                this.isPlaying = true;
-                this.setActiveTrack(this.currentTrackIndex);
-                this.updatePlayState();
-            },
-            onPause: () => {
-                this.isPlaying = false;
-                this.updatePlayState();
-                // Reset chapter when paused at end
-                if (this.player && this.player.audio) {
-                    const current = this.player.audio.currentTime;
-                    const duration = this.player.audio.duration;
-                    if (current >= duration - 0.1) {
-                        this.currentChapterIndex = -1;
-                        this.updateActiveChapter(0);
-                    }
-                }
-            }
+            // Set once here: the core's loadTrack() merges new options over the
+            // old, so these survive every track change.
+            ...this.playerCallbacks()
         };
 
         // Create player instance
@@ -854,6 +868,88 @@ export class WaveformPlaylist {
 
         // Initialize chapter tracking
         this.updateActiveChapter(0);
+    }
+
+    /**
+     * The per-track options handed to the player — on construction for the
+     * first track, via loadTrack() for every later one — so the two paths can't
+     * drift apart.
+     *
+     * Every key is always present, because the core merges loadTrack() options
+     * over the previous track's and skips `undefined`: an absent album used to
+     * leave the previous track's album on the lock screen / Media Session.
+     * The core itself resets `artwork` (removed when falsy), `markers` and
+     * `waveform` (falsy = decode from the audio) per load.
+     *
+     * @private
+     * @param {Object} track - Parsed track.
+     * @returns {{markers: Array<Object>, artwork: (string|undefined), album: string, waveform: (string|number[]|undefined)}}
+     */
+    trackPlayerOptions(track) {
+        let markers = track.markers;
+
+        // Convert chapters to markers if needed (explicit markers win).
+        if (this.options.showChapterMarkers && track.chapters.length > 0 && markers.length === 0) {
+            markers = track.chapters.map(ch => ({
+                time: ch.time,
+                label: ch.label,
+                color: ch.color || this.options.chapterMarkerColor
+            }));
+        }
+
+        return {
+            markers: markers,
+            artwork: track.artwork,
+            album: track.album || '',
+            waveform: track.waveform
+        };
+    }
+
+    /**
+     * The player callbacks the playlist drives itself off.
+     *
+     * Every core callback is a documented pass-through option, and the wrappers
+     * rely on that (the Svelte one maps its on:play/on:pause/on:end/
+     * on:timeupdate onto them), so a user-supplied callback is chained to run
+     * AFTER the playlist's own handling instead of being overwritten by it.
+     *
+     * @private
+     * @returns {Object} Callback options for the WaveformPlayer.
+     */
+    playerCallbacks() {
+        const user = this.options;
+        const chain = (name, own) => (...args) => {
+            own(...args);
+            if (typeof user[name] === 'function') user[name](...args);
+        };
+
+        return {
+            onEnd: chain('onEnd', () => this.onTrackEnd()),
+            onNextTrack: chain('onNextTrack', () => this.nextTrack()),
+            onPreviousTrack: chain('onPreviousTrack', () => this.previousTrack()),
+            onTimeUpdate: chain('onTimeUpdate', (current, total) => {
+                this.updateActiveChapter(current);
+                if (this.isHero || this.isGrid) this.updateHeroTime(current, total);
+            }),
+            onPlay: chain('onPlay', () => {
+                this.isPlaying = true;
+                this.setActiveTrack(this.currentTrackIndex);
+                this.updatePlayState();
+            }),
+            onPause: chain('onPause', () => {
+                this.isPlaying = false;
+                this.updatePlayState();
+                // Reset chapter when paused at end
+                if (this.player && this.player.audio) {
+                    const current = this.player.audio.currentTime;
+                    const duration = this.player.audio.duration;
+                    if (current >= duration - 0.1) {
+                        this.currentChapterIndex = -1;
+                        this.updateActiveChapter(0);
+                    }
+                }
+            })
+        };
     }
 
     /**
@@ -1196,51 +1292,10 @@ export class WaveformPlaylist {
         this.currentTrackIndex = index;
         this.currentChapterIndex = -1;
 
-        // Determine markers for this track
-        let markers = track.markers;
-
-        // Smart default for showing chapter markers
-        const shouldShowChapterMarkers = this.options.showChapterMarkers ||
-            (this.options.showChapterMarkers === null && this.tracks.length === 1 && track.chapters.length > 0);
-
-        if (shouldShowChapterMarkers && track.chapters.length > 0 && markers.length === 0) {
-            markers = track.chapters.map(ch => ({
-                time: ch.time,
-                label: ch.label,
-                color: ch.color || this.options.chapterMarkerColor
-            }));
-        }
-
-        // Load track into player
+        // Load track into player. Callbacks were set at construction and
+        // survive the core's option merge, so only per-track data travels.
         if (this.player) {
-            this.player.loadTrack(
-                track.url,
-                track.title,
-                track.artist,
-                {
-                    markers: markers,
-                    artwork: track.artwork,
-                    album: track.album,
-                    onPlay: () => {
-                        this.isPlaying = true;
-                        this.setActiveTrack(this.currentTrackIndex);
-                        this.updatePlayState();
-                    },
-                    onPause: () => {
-                        this.isPlaying = false;
-                        this.updatePlayState();
-                        // Reset chapter when paused at end
-                        if (this.player && this.player.audio) {
-                            const current = this.player.audio.currentTime;
-                            const duration = this.player.audio.duration;
-                            if (current >= duration - 0.1) {
-                                this.currentChapterIndex = -1;
-                                this.updateActiveChapter(0);
-                            }
-                        }
-                    }
-                }
-            );
+            this.player.loadTrack(track.url, track.title, track.artist, this.trackPlayerOptions(track));
         }
 
         // Update UI
@@ -1377,9 +1432,7 @@ export class WaveformPlaylist {
         // reports real values (avoids briefly showing the previous track's time).
         if ((this.isHero || this.isGrid) && this.tracks[index]) {
             const t = this.tracks[index];
-            if (this.heroArt && t.artwork) {
-                this.heroArt.src = t.artwork;
-            }
+            this.setHeroArt(t.artwork);
             if (this.heroTitle) this.heroTitle.textContent = t.title || '';
             if (this.heroSub) this.heroSub.textContent = t.artist || '';
             if (this.heroTime && index !== this._heroTimeIndex) {

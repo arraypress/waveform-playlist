@@ -22,6 +22,23 @@ project adheres to [Semantic Versioning](https://semver.org/).
   handed the playlist a player that dispatches request-play events nobody
   answers. The playlist always owns its audio, so the option is now ignored
   from either source.
+- **Your player callbacks run instead of being replaced.** `onPlay`, `onPause`,
+  `onEnd`, `onTimeUpdate`, `onNextTrack` and `onPreviousTrack` are documented
+  pass-through options (the Svelte wrapper's `on:play`/`on:pause`/`on:end`/
+  `on:timeupdate` ride on them), but the playlist overwrote all six with its
+  own handlers. Yours now run after the playlist's own handling, with the
+  core's arguments.
+- **Per-track `data-waveform` peaks are used.** They were never read, so every
+  track decoded its audio even with peaks in the markup. A JSON array is
+  parsed (a malformed one warns and falls back to decoding); a `.json` peaks
+  URL is passed through for the core to fetch.
+- **The previous track's album no longer sticks on the lock screen.** An
+  absent album was sent as `undefined`, which the core's option merge skips,
+  so Media Session kept the last album that had one.
+- **Hero cover art follows the track.** A track without artwork kept showing
+  the previous cover, and a hero playlist whose first track had no artwork
+  never showed any cover at all. The art is now created on demand and hidden
+  for artless tracks.
 
 ### Changed
 

@@ -541,3 +541,137 @@ describe('constructor options (framework wrappers pass these, not data-*)', () =
 		expect(playlist.player.options.audioMode).toBeUndefined();
 	});
 });
+
+describe('user player callbacks are chained, not overwritten', () => {
+	it('runs onPlay/onPause/onEnd/onTimeUpdate after the playlist\'s own handlers', () => {
+		const calls = [];
+		const cb = (name) => vi.fn(() => calls.push(name));
+		const user = {
+			onPlay: cb('play'), onPause: cb('pause'), onEnd: cb('end'), onTimeUpdate: cb('time'),
+			onNextTrack: cb('next'), onPreviousTrack: cb('prev'),
+		};
+		const { playlist } = mount(TWO_TRACKS, user);
+		const opts = playlist.player.options;
+
+		opts.onPlay(playlist.player);
+		expect(playlist.isPlaying).toBe(true);           // playlist logic ran...
+		expect(user.onPlay).toHaveBeenCalledWith(playlist.player); // ...and so did the user's
+
+		opts.onPause(playlist.player);
+		expect(playlist.isPlaying).toBe(false);
+		expect(user.onPause).toHaveBeenCalled();
+
+		opts.onTimeUpdate(12, 100, playlist.player);
+		expect(user.onTimeUpdate).toHaveBeenCalledWith(12, 100, playlist.player);
+
+		opts.onNextTrack(playlist.player);
+		expect(playlist.currentTrackIndex).toBe(1);
+		expect(user.onNextTrack).toHaveBeenCalled();
+
+		opts.onPreviousTrack(playlist.player);
+		expect(playlist.currentTrackIndex).toBe(0);
+		expect(user.onPreviousTrack).toHaveBeenCalled();
+
+		opts.onEnd(playlist.player);
+		expect(user.onEnd).toHaveBeenCalled();
+		expect(calls).toEqual(['play', 'pause', 'time', 'next', 'prev', 'end']);
+	});
+
+	it('keeps the user callbacks across a track change', async () => {
+		const onPlay = vi.fn();
+		const { playlist } = mount(TWO_TRACKS, { onPlay });
+		playlist.selectTrack(1);
+		await settle(); // the core auto-plays the freshly loaded track
+		expect(onPlay).toHaveBeenCalled();
+		expect(playlist.isPlaying).toBe(true);
+	});
+
+	it('still forwards user onLoad', async () => {
+		const onLoad = vi.fn();
+		const { playlist } = mount(TWO_TRACKS, { onLoad });
+		await settle();
+		expect(onLoad).toHaveBeenCalledWith(playlist.player);
+	});
+});
+
+describe('per-track data-waveform peaks', () => {
+	const PEAKS = `
+		<div data-track data-url="/a.mp3" data-title="A" data-waveform="[0.1,0.5,0.9]"></div>
+		<div data-track data-url="/b.mp3" data-title="B" data-waveform="/peaks/b.json"></div>
+		<div data-track data-url="/c.mp3" data-title="C"></div>
+	`;
+
+	it('parses a JSON peaks array or passes a peaks URL through', () => {
+		const { playlist } = mount(PEAKS);
+		expect(playlist.tracks[0].waveform).toEqual([0.1, 0.5, 0.9]);
+		expect(playlist.tracks[1].waveform).toBe('/peaks/b.json');
+		expect(playlist.tracks[2].waveform).toBeUndefined();
+	});
+
+	it('hands each track\'s peaks to the player on init and on track change', () => {
+		const { playlist } = mount(PEAKS);
+		expect(playlist.player.options.waveform).toEqual([0.1, 0.5, 0.9]);
+
+		playlist.selectTrack(1);
+		expect(playlist.player.calls.loadTrack[0].options.waveform).toBe('/peaks/b.json');
+		expect(playlist.player.options.waveform).toBe('/peaks/b.json');
+
+		playlist.selectTrack(2);
+		expect(playlist.player.options.waveform).toBeNull(); // core reset → decode
+	});
+
+	it('drops malformed peaks JSON with a warning instead of throwing', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const { playlist } = mount('<div data-track data-url="/a.mp3" data-waveform="[0.1,"></div>');
+		expect(playlist.tracks[0].waveform).toBeUndefined();
+		expect(warn.mock.calls[0][0]).toContain('[WaveformPlaylist]');
+		warn.mockRestore();
+	});
+});
+
+describe('track metadata does not leak between tracks', () => {
+	const ALBUMS = `
+		<div data-track data-url="/a.mp3" data-title="A" data-album="Album A" data-artwork="/art/a.jpg"></div>
+		<div data-track data-url="/b.mp3" data-title="B"></div>
+		<div data-track data-url="/c.mp3" data-title="C" data-artwork="/art/c.jpg"></div>
+	`;
+
+	// The core's mergeOptions skips undefined, so `album: undefined` left the
+	// previous album on the lock screen / Media Session.
+	it('clears the album when the next track has none', () => {
+		const { playlist } = mount(ALBUMS);
+		expect(playlist.player.options.album).toBe('Album A');
+		playlist.selectTrack(1);
+		expect(playlist.player.options.album).toBe('');
+	});
+
+	it('hides the hero cover art for a track without artwork', () => {
+		const { container, playlist } = mount(ALBUMS, { layout: 'hero' });
+		const art = container.querySelector('.wp-hero-art');
+		expect(art.getAttribute('src')).toBe('/art/a.jpg');
+
+		playlist.selectTrack(1);
+		expect(art.style.display).toBe('none');
+		expect(art.hasAttribute('src')).toBe(false);
+
+		playlist.selectTrack(2);
+		expect(art.style.display).toBe('');
+		expect(art.getAttribute('src')).toBe('/art/c.jpg');
+	});
+
+	it('creates the hero cover art lazily when the first track has none', () => {
+		const html = `
+			<div data-track data-url="/b.mp3" data-title="B"></div>
+			<div data-track data-url="/c.mp3" data-title="C" data-artwork="/art/c.jpg"></div>
+		`;
+		const { container, playlist } = mount(html, { layout: 'hero' });
+		expect(container.querySelector('.wp-hero-art')).toBeNull();
+
+		playlist.selectTrack(1);
+		const art = container.querySelector('.wp-hero-art');
+		expect(art).not.toBeNull();
+		expect(art.getAttribute('src')).toBe('/art/c.jpg');
+		// Sits beneath the play/pause overlay, not over it.
+		expect(art.nextElementSibling.classList.contains('wp-hero-overlay')).toBe(true);
+	});
+});
