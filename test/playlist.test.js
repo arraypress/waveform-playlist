@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MockWaveformPlayer } from './setup.js';
+import { MockWaveformPlayer, settle } from './setup.js';
 import { WaveformPlaylist } from '../src/js/index.js';
 
 /**
@@ -35,6 +35,8 @@ const SINGLE_WITH_CHAPTERS = `
 
 beforeEach(() => {
 	MockWaveformPlayer.instances = [];
+	MockWaveformPlayer.failingUrls = new Set();
+	MockWaveformPlayer.durations = {};
 });
 
 afterEach(() => {
