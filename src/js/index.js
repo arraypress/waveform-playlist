@@ -1612,6 +1612,13 @@ export class WaveformPlaylist {
                 return;
             }
 
+            // Leave browser/OS shortcuts alone: Cmd/Ctrl+P is print, Ctrl+N a
+            // new window, Ctrl/Cmd/Alt+digit switches tabs. Shift is allowed
+            // (Shift+N still reads as "n").
+            if (e.ctrlKey || e.metaKey || e.altKey) {
+                return;
+            }
+
             switch (e.key.toLowerCase()) {
                 case 'n':
                     if (this.tracks.length > 1) {
@@ -1682,16 +1689,19 @@ export class WaveformPlaylist {
      * is 0 — the start of the track — rather than a value that poisons every
      * calculation it touches.
      *
+     * Hour-long chapters need `H:MM:SS`, which used to read as just the hour
+     * (`"1:05:30"` → 1 second).
+     *
      * @private
-     * @param {string} timeStr - Time string in format "M:SS" or "MM:SS"
+     * @param {string} timeStr - Time string: "SS", "M:SS" or "H:MM:SS"
      * @returns {number} Time in seconds, or 0 when unparseable
      */
     parseTime(timeStr) {
-        const parts = String(timeStr ?? '').split(':').map(Number);
-        const seconds = parts.length === 2
-            ? parts[0] * 60 + parts[1]
-            : parts[0];
+        const parts = String(timeStr ?? '').trim().split(':');
+        // An empty field ("1::30") would coerce to 0 and pass as valid.
+        if (parts.length > 3 || (parts.length > 1 && parts.some(p => p.trim() === ''))) return 0;
 
+        const seconds = parts.reduce((acc, p) => acc * 60 + Number(p), 0);
         return Number.isFinite(seconds) && seconds >= 0 ? seconds : 0;
     }
 

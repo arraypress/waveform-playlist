@@ -1021,3 +1021,44 @@ describe('chapter times', () => {
 		expect(warn.mock.calls[0].join(' ')).toContain('Too late');
 	});
 });
+
+describe('parseTime H:MM:SS', () => {
+	it('parses hour-long chapter times', () => {
+		const { playlist } = mount(TWO_TRACKS);
+		expect(playlist.parseTime('1:05:30')).toBe(3930);
+		expect(playlist.parseTime('01:00:00')).toBe(3600);
+		expect(playlist.parseTime('0:01:30')).toBe(90);
+	});
+
+	it('keeps M:SS, plain seconds and the 0-on-garbage contract', () => {
+		const { playlist } = mount(TWO_TRACKS);
+		expect(playlist.parseTime('2:05')).toBe(125);
+		expect(playlist.parseTime('90')).toBe(90);
+		expect(playlist.parseTime('12.5')).toBe(12.5);
+		expect(playlist.parseTime('1:05:ab')).toBe(0);
+		expect(playlist.parseTime('1:2:3:4')).toBe(0);
+		expect(playlist.parseTime('1::30')).toBe(0);
+	});
+});
+
+describe('keyboard shortcuts leave modified keys alone', () => {
+	// Cmd/Ctrl+P is print, Ctrl+N a new window, Ctrl/Alt+digit tab switching.
+	for (const mod of ['ctrlKey', 'metaKey', 'altKey']) {
+		it(`ignores n / p / digits with ${mod}`, () => {
+			const { container, playlist } = mount(TWO_TRACKS);
+			container.querySelectorAll('.wp-item')[0].focus();
+
+			for (const key of ['n', '2']) {
+				const e = new KeyboardEvent('keydown', { key, [mod]: true, cancelable: true });
+				document.dispatchEvent(e);
+				expect(e.defaultPrevented).toBe(false);
+				expect(playlist.currentTrackIndex).toBe(0);
+			}
+			playlist.selectTrack(1);
+			const p = new KeyboardEvent('keydown', { key: 'p', [mod]: true, cancelable: true });
+			document.dispatchEvent(p);
+			expect(p.defaultPrevented).toBe(false);
+			expect(playlist.currentTrackIndex).toBe(1);
+		});
+	}
+});

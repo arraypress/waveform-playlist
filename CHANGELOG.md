@@ -79,6 +79,13 @@ project adheres to [Semantic Versioning](https://semver.org/).
 - **Chapters sharing a start time highlight the first, not the last.** Most
   visibly, several chapters without `data-time` all sit at 0:00 and the last
   of them was marked as playing.
+- **`H:MM:SS` chapter times parse.** `data-time="1:05:30"` read as 1 second —
+  only the first field of a three-part time was used. `SS` and `M:SS` are
+  unchanged, and a malformed time still reads as 0.
+- **Keyboard shortcuts no longer hijack browser shortcuts.** With focus in the
+  playlist, Cmd/Ctrl+P (print) went to the previous track, Ctrl+N to the next,
+  and Ctrl/Alt+1–9 selected tracks instead of switching tabs. Keys with Ctrl,
+  Cmd or Alt held now pass through untouched.
 
 ### Changed
 
