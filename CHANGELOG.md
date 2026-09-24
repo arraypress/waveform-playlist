@@ -6,6 +6,8 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-09-24
+
 ### Fixed
 
 - **Playlist options passed to the constructor are honoured.** `expandChapters`,

@@ -28,13 +28,23 @@ var WaveformPlaylist = class {
    *
    * @param {string|HTMLElement} container - Container element or CSS selector
    * @param {Object} [options={}] - Configuration options
-   * @param {string} [options.layout='list'] - Layout style: 'list' or 'minimal'
+   * @param {string} [options.layout='list'] - Layout style: 'list', 'minimal', 'hero' or 'grid'
    * @param {boolean} [options.continuous=false] - Auto-advance to next track
    * @param {boolean} [options.expandChapters=true] - Show chapters under tracks
    * @param {boolean} [options.showDuration=true] - Display track durations
    * @param {boolean|null} [options.showChapterMarkers=null] - Show chapters as waveform markers (null = smart default)
    * @param {string} [options.chapterMarkerColor='rgba(161, 161, 170, 0.85)'] - Default color for chapter markers
    * @param {boolean} [options.showPlayState=true] - Show play/pause icon on active track artwork
+   * @param {boolean} [options.showArtist=true] - Show the now-playing / per-row artist
+   * @param {number} [options.coverSize] - Hero cover size in px
+   * @param {number} [options.thumbnailSize] - Queue thumbnail / grid cover size in px
+   * @param {string} [options.density='comfortable'] - Row density: 'comfortable' or 'compact'
+   * @param {string} [options.coverPosition='left'] - Hero cover position: 'left' or 'top'
+   * @param {string} [options.barPosition='bottom'] - Grid now-playing bar position: 'top' or 'bottom'
+   *
+   * Any other option is forwarded to the embedded WaveformPlayer, including
+   * its callbacks (chained after the playlist's own). `audioMode` is ignored:
+   * the playlist always owns its audio.
    * @throws {Error} If container not found or WaveformPlayer not available
    */
   constructor(container, options = {}) {
@@ -56,6 +66,7 @@ var WaveformPlaylist = class {
     this.isGrid = this.options.layout === "grid";
     this.isPlaying = false;
     this.keydownHandler = null;
+    this.pending = null;
     this.parseTracks();
     if (this.tracks.length > 0) {
       this.init();
@@ -69,27 +80,26 @@ var WaveformPlaylist = class {
    */
   parseOptions(providedOptions) {
     const container = this.container;
+    const ds = container.dataset;
     const options = { ...providedOptions };
+    delete options.audioMode;
     const fromData = this.parsePlayerDataAttributes(container);
     ["audioMode", "url", "title", "artist", "album", "artwork", "markers", "waveform"].forEach((key) => delete fromData[key]);
     Object.assign(options, fromData);
-    options.layout = container.dataset.layout || options.layout || "list";
-    options.continuous = container.dataset.continuous === "true" || options.continuous || false;
-    options.expandChapters = container.dataset.expandChapters !== "false";
-    options.showDuration = container.dataset.showDuration !== "false";
-    options.showPlayState = container.dataset.showPlayState !== "false";
-    options.showArtist = options.showArtist !== false && container.dataset.showArtist !== "false";
-    options.coverSize = parseInt(container.dataset.coverSize, 10) || options.coverSize || null;
-    options.thumbnailSize = parseInt(container.dataset.thumbnailSize, 10) || options.thumbnailSize || null;
-    options.density = container.dataset.density || options.density || "comfortable";
-    options.coverPosition = container.dataset.coverPosition || options.coverPosition || "left";
-    options.barPosition = container.dataset.barPosition || options.barPosition || "bottom";
-    if (container.dataset.showChapterMarkers !== void 0) {
-      options.showChapterMarkers = container.dataset.showChapterMarkers === "true";
-    } else {
-      options.showChapterMarkers = null;
-    }
-    options.chapterMarkerColor = container.dataset.chapterMarkerColor || "rgba(161, 161, 170, 0.85)";
+    const flag = (key, fallback) => ds[key] !== void 0 ? ds[key] !== "false" : options[key] ?? fallback;
+    options.layout = ds.layout || options.layout || "list";
+    options.continuous = flag("continuous", false);
+    options.expandChapters = flag("expandChapters", true);
+    options.showDuration = flag("showDuration", true);
+    options.showPlayState = flag("showPlayState", true);
+    options.showArtist = flag("showArtist", true);
+    options.coverSize = parseInt(ds.coverSize, 10) || options.coverSize || null;
+    options.thumbnailSize = parseInt(ds.thumbnailSize, 10) || options.thumbnailSize || null;
+    options.density = ds.density || options.density || "comfortable";
+    options.coverPosition = ds.coverPosition || options.coverPosition || "left";
+    options.barPosition = ds.barPosition || options.barPosition || "bottom";
+    options.showChapterMarkers = flag("showChapterMarkers", null);
+    options.chapterMarkerColor = ds.chapterMarkerColor || options.chapterMarkerColor || "rgba(161, 161, 170, 0.85)";
     return options;
   }
   /**
@@ -128,11 +138,25 @@ var WaveformPlaylist = class {
     const ds = container.dataset;
     const opts = {};
     const str = (k, o = k) => {
-      if (ds[k] !== void 0) opts[o] = ds[k];
+      if (ds[k]) opts[o] = ds[k];
     };
     const bool = (k, o = k) => {
-      if (ds[k] === "true") opts[o] = true;
-      else if (ds[k] === "false") opts[o] = false;
+      if (ds[k] !== void 0) opts[o] = ds[k] === "true";
+    };
+    const color = (k, o = k) => {
+      if (!ds[k]) return;
+      let value = ds[k];
+      if (value.trim().startsWith("[")) {
+        try {
+          value = JSON.parse(value);
+        } catch (e) {
+        }
+      }
+      opts[o] = value;
+    };
+    const length = (k, o = k) => {
+      if (!ds[k]) return;
+      opts[o] = /^\d+(\.\d+)?$/.test(ds[k].trim()) ? parseFloat(ds[k]) : ds[k];
     };
     const num = (k, o, parse) => {
       if (!ds[k]) return;
@@ -154,18 +178,26 @@ var WaveformPlaylist = class {
       if (Array.isArray(parsed)) opts[o] = parsed;
       else console.warn(`[WaveformPlaylist] Invalid ${k} attribute, expected a JSON array:`, ds[k]);
     };
+    str("style", "waveformStyle");
     str("waveformStyle");
+    str("waveformGradient");
     int("barWidth");
     int("barSpacing");
     int("barRadius");
     str("buttonAlign");
+    str("buttonStyle");
+    length("buttonSize");
+    length("buttonRadius");
     int("height");
     int("samples");
     str("preload");
     str("crossOrigin");
+    str("artworkPosition");
     str("colorPreset");
-    str("waveformColor");
-    str("progressColor");
+    color("waveformColor");
+    color("progressColor");
+    str("color", "waveformColor");
+    str("theme", "colorPreset");
     str("buttonColor");
     str("buttonHoverColor");
     str("textColor");
@@ -177,7 +209,9 @@ var WaveformPlaylist = class {
     bool("showInfo");
     bool("showTime");
     bool("showHoverTime");
+    bool("seekHandle");
     bool("showBpm", "showBPM");
+    int("bpm");
     bool("singlePlay");
     bool("playOnSeek");
     bool("showPlaybackSpeed");
@@ -187,7 +221,12 @@ var WaveformPlaylist = class {
     float("playbackRate");
     jsonArray("playbackRates");
     str("seekLabel");
+    str("seekValueText");
     str("errorText");
+    str("playPauseLabel");
+    str("speedLabel");
+    str("artworkAlt");
+    str("unknownTrackText");
     str("playIcon");
     str("pauseIcon");
     return opts;
@@ -225,18 +264,48 @@ var WaveformPlaylist = class {
     return parsed.map((m) => m && typeof m === "object" ? { ...m, time: Number(m.time) } : null).filter((m) => m && Number.isFinite(m.time));
   }
   /**
+   * Parse a track's `data-waveform` peaks.
+   *
+   * A JSON array is parsed here so a typo costs that one track its peaks
+   * (the player then decodes the audio) rather than reaching the player as
+   * a string; anything else — a `.json` peaks URL, or a comma-separated
+   * list — is passed through for the core to resolve, which it already does.
+   *
+   * @private
+   * @param {string|undefined} raw - Raw `data-waveform` value.
+   * @returns {number[]|string|undefined} Peaks, a peaks source, or undefined.
+   */
+  parseWaveform(raw) {
+    const value = (raw || "").trim();
+    if (!value) return void 0;
+    if (!value.startsWith("[")) return value;
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {
+    }
+    console.warn("[WaveformPlaylist] Invalid waveform attribute, expected a JSON array of peaks or a peaks URL:", raw);
+    return void 0;
+  }
+  /**
    * Parse tracks and chapters from container markup
    * @private
    */
   parseTracks() {
     const trackElements = this.container.querySelectorAll("[data-track]");
     this.tracks = Array.from(trackElements).map((el, index) => {
-      const chapters = Array.from(el.querySelectorAll("[data-chapter]")).map((ch) => ({
-        time: this.parseTime(ch.dataset.time || "0:00"),
-        label: ch.textContent.trim(),
-        color: ch.dataset.color,
-        element: ch
-      }));
+      const chapters = Array.from(el.querySelectorAll("[data-chapter]")).map((ch) => {
+        const label = ch.textContent.trim();
+        if (!(ch.dataset.time || "").trim()) {
+          console.warn(`[WaveformPlaylist] Chapter "${label}" has no data-time; placing it at 0:00.`);
+        }
+        return {
+          time: this.parseTime(ch.dataset.time || "0:00"),
+          label,
+          color: ch.dataset.color,
+          element: ch
+        };
+      }).sort((a, b) => a.time - b.time);
       return {
         element: el,
         index,
@@ -246,6 +315,7 @@ var WaveformPlaylist = class {
         artwork: el.dataset.artwork,
         album: el.dataset.album,
         duration: el.dataset.duration,
+        waveform: this.parseWaveform(el.dataset.waveform),
         chapters,
         // Parse explicit markers if provided (separate from chapters)
         markers: this.parseMarkers(el.dataset.markers)
@@ -257,27 +327,31 @@ var WaveformPlaylist = class {
    * @private
    */
   init() {
-    this.container.classList.add("waveform-playlist");
+    this.ownNodes = [];
+    this.ownClasses = [];
+    this.addOwnClass("waveform-playlist");
     if (this.isMinimal) {
-      this.container.classList.add("wp-minimal");
+      this.addOwnClass("wp-minimal");
     }
     if (this.isHero || this.isGrid) {
-      this.container.classList.add("wp-hero-layout");
+      this.addOwnClass("wp-hero-layout");
     }
     if (this.isGrid) {
-      this.container.classList.add("wp-grid-layout");
+      this.addOwnClass("wp-grid-layout");
     }
     if (this.options.density === "compact") {
-      this.container.classList.add("wp-density-compact");
+      this.addOwnClass("wp-density-compact");
     }
     if ((this.isHero || this.isGrid) && this.options.coverPosition === "top") {
-      this.container.classList.add("wp-cover-top");
+      this.addOwnClass("wp-cover-top");
     }
     if (!this.options.showArtist) {
-      this.container.classList.add("wp-no-artist");
+      this.addOwnClass("wp-no-artist");
     }
+    this.trackDisplay = /* @__PURE__ */ new Map();
     this.tracks.forEach((track) => {
       if (track.element) {
+        this.trackDisplay.set(track.element, track.element.style.display);
         track.element.style.display = "none";
       }
     });
@@ -300,7 +374,7 @@ var WaveformPlaylist = class {
         this.createHeroQueue();
       }
     } else {
-      this.container.appendChild(playerContainer);
+      this.appendOwn(playerContainer);
       if (this.tracks.length === 1 && this.tracks[0].chapters.length > 0) {
         this.createChapterList();
       } else if (this.isMinimal) {
@@ -311,6 +385,26 @@ var WaveformPlaylist = class {
     }
     this.initPlayer(playerContainer);
     this.bindKeyboard();
+  }
+  /**
+   * Append a generated node to the container and record it for destroy().
+   * @private
+   * @param {HTMLElement} node
+   */
+  appendOwn(node) {
+    this.container.appendChild(node);
+    this.ownNodes.push(node);
+  }
+  /**
+   * Add a class to the container and record it for destroy() — unless the
+   * author already set it, in which case it isn't ours to remove.
+   * @private
+   * @param {string} name
+   */
+  addOwnClass(name) {
+    if (this.container.classList.contains(name)) return;
+    this.container.classList.add(name);
+    this.ownClasses.push(name);
   }
   /**
    * Build the hero "now playing" unit: a cover that doubles as the play/pause
@@ -330,15 +424,6 @@ var WaveformPlaylist = class {
     cover.style.width = coverSize;
     cover.style.height = coverSize;
     cover.setAttribute("aria-label", "Play");
-    if (first.artwork) {
-      const img = document.createElement("img");
-      img.className = "wp-hero-art";
-      img.alt = "";
-      img.src = first.artwork;
-      applyArtFallback(img);
-      cover.appendChild(img);
-      this.heroArt = img;
-    }
     const overlay = document.createElement("span");
     overlay.className = "wp-hero-overlay";
     const icon = document.createElement("i");
@@ -349,6 +434,7 @@ var WaveformPlaylist = class {
     cover.addEventListener("click", () => this.togglePlay());
     this.heroCover = cover;
     this.heroIcon = icon;
+    this.setHeroArt(first.artwork);
     hero.appendChild(cover);
     const main = document.createElement("div");
     main.className = "wp-hero-main";
@@ -377,7 +463,34 @@ var WaveformPlaylist = class {
     meta.appendChild(time);
     main.appendChild(meta);
     hero.appendChild(main);
-    this.container.appendChild(hero);
+    this.appendOwn(hero);
+  }
+  /**
+   * Show `src` on the hero cover, or hide the cover art when the track has
+   * none. The `<img>` is created on first use: it used to exist only when
+   * the FIRST track had artwork, so a playlist opening on an artless track
+   * never showed any later cover — and one that did kept showing the
+   * previous cover on an artless track. No-op without a hero cover (grid).
+   * @private
+   * @param {string|undefined} src - Artwork URL.
+   */
+  setHeroArt(src) {
+    if (!this.heroCover) return;
+    if (src) {
+      if (!this.heroArt) {
+        const img = document.createElement("img");
+        img.className = "wp-hero-art";
+        img.alt = "";
+        applyArtFallback(img);
+        this.heroCover.insertBefore(img, this.heroCover.firstChild);
+        this.heroArt = img;
+      }
+      this.heroArt.style.display = "";
+      if (this.heroArt.getAttribute("src") !== src) this.heroArt.src = src;
+    } else if (this.heroArt) {
+      this.heroArt.style.display = "none";
+      this.heroArt.removeAttribute("src");
+    }
   }
   /**
    * Build the slim "now playing" transport bar for the grid layout: a small
@@ -416,7 +529,7 @@ var WaveformPlaylist = class {
     meta.appendChild(time);
     bar.appendChild(meta);
     if (this.options.barPosition === "top") bar.classList.add("wp-now-bar-top");
-    this.container.appendChild(bar);
+    this.appendOwn(bar);
   }
   /**
    * Build the stripped queue beneath the hero: numbered rows of title +
@@ -490,7 +603,7 @@ var WaveformPlaylist = class {
       if (sub) list.appendChild(sub);
     });
     listContainer.appendChild(list);
-    this.container.appendChild(listContainer);
+    this.appendOwn(listContainer);
     this.listElement = list;
   }
   /**
@@ -548,7 +661,7 @@ var WaveformPlaylist = class {
       });
       gridContainer.appendChild(card);
     });
-    this.container.appendChild(gridContainer);
+    this.appendOwn(gridContainer);
     this.listElement = gridContainer;
   }
   /**
@@ -583,16 +696,8 @@ var WaveformPlaylist = class {
    */
   initPlayer(container) {
     const firstTrack = this.tracks[0];
-    let markers = firstTrack.markers;
     if (this.options.showChapterMarkers === null) {
       this.options.showChapterMarkers = this.tracks.length === 1 && firstTrack.chapters.length > 0;
-    }
-    if (this.options.showChapterMarkers && firstTrack.chapters.length > 0 && markers.length === 0) {
-      markers = firstTrack.chapters.map((ch) => ({
-        time: ch.time,
-        label: ch.label,
-        color: ch.color || this.options.chapterMarkerColor
-      }));
     }
     const forwarded = { ...this.options };
     PLAYLIST_OWN_OPTIONS.forEach((key) => delete forwarded[key]);
@@ -601,26 +706,89 @@ var WaveformPlaylist = class {
       url: firstTrack.url,
       title: firstTrack.title,
       artist: firstTrack.artist,
-      artwork: firstTrack.artwork,
-      album: firstTrack.album,
-      markers,
+      ...this.trackPlayerOptions(firstTrack),
       // Hero layout drives a waveform-ONLY player: the cover (with its
       // play/pause overlay), the time readout and the queue are this
       // component's own chrome, so suppress the player's button + info row.
       ...this.isHero || this.isGrid ? { showControls: false, showInfo: false } : {},
-      onEnd: () => this.onTrackEnd(),
-      onNextTrack: () => this.nextTrack(),
-      onPreviousTrack: () => this.previousTrack(),
-      onTimeUpdate: (current, total) => {
+      // Set once here: the core's loadTrack() merges new options over the
+      // old, so these survive every track change.
+      ...this.playerCallbacks()
+    };
+    this.player = new window.WaveformPlayer(container, playerOptions);
+    if (!this.isHero && !this.isGrid) {
+      container.classList.add("wp-player");
+    }
+    this.setActiveTrack(0);
+    this.updateActiveChapter(0);
+  }
+  /**
+   * The per-track options handed to the player — on construction for the
+   * first track, via loadTrack() for every later one — so the two paths can't
+   * drift apart.
+   *
+   * Every key is always present, because the core merges loadTrack() options
+   * over the previous track's and skips `undefined`: an absent album used to
+   * leave the previous track's album on the lock screen / Media Session.
+   * The core itself resets `artwork` (removed when falsy), `markers` and
+   * `waveform` (falsy = decode from the audio) per load.
+   *
+   * @private
+   * @param {Object} track - Parsed track.
+   * @returns {{markers: Array<Object>, artwork: (string|undefined), album: string, waveform: (string|number[]|undefined)}}
+   */
+  trackPlayerOptions(track) {
+    let markers = track.markers;
+    if (this.options.showChapterMarkers && track.chapters.length > 0 && markers.length === 0) {
+      markers = track.chapters.map((ch) => ({
+        time: ch.time,
+        label: ch.label,
+        color: ch.color || this.options.chapterMarkerColor
+      }));
+    }
+    return {
+      markers,
+      artwork: track.artwork,
+      album: track.album || "",
+      waveform: track.waveform
+    };
+  }
+  /**
+   * The player callbacks the playlist drives itself off.
+   *
+   * Every core callback is a documented pass-through option, and the wrappers
+   * rely on that (the Svelte one maps its on:play/on:pause/on:end/
+   * on:timeupdate onto them), so a user-supplied callback is chained to run
+   * AFTER the playlist's own handling instead of being overwritten by it.
+   *
+   * @private
+   * @returns {Object} Callback options for the WaveformPlayer.
+   */
+  playerCallbacks() {
+    const user = this.options;
+    const chain = (name, own) => (...args) => {
+      own(...args);
+      if (typeof user[name] === "function") user[name](...args);
+    };
+    return {
+      onLoad: chain("onLoad", (player) => this.resolvePending(player)),
+      // The core never calls onLoad for a failed load, so a seek waiting
+      // on it would otherwise stay armed and fire on the next track.
+      onError: chain("onError", () => this.cancelPending()),
+      onEnd: chain("onEnd", () => this.onTrackEnd()),
+      onNextTrack: chain("onNextTrack", () => this.nextTrack()),
+      onPreviousTrack: chain("onPreviousTrack", () => this.previousTrack()),
+      onTimeUpdate: chain("onTimeUpdate", (current, total) => {
+        this.checkChapterRange(total);
         this.updateActiveChapter(current);
         if (this.isHero || this.isGrid) this.updateHeroTime(current, total);
-      },
-      onPlay: () => {
+      }),
+      onPlay: chain("onPlay", () => {
         this.isPlaying = true;
         this.setActiveTrack(this.currentTrackIndex);
         this.updatePlayState();
-      },
-      onPause: () => {
+      }),
+      onPause: chain("onPause", () => {
         this.isPlaying = false;
         this.updatePlayState();
         if (this.player && this.player.audio) {
@@ -631,14 +799,8 @@ var WaveformPlaylist = class {
             this.updateActiveChapter(0);
           }
         }
-      }
+      })
     };
-    this.player = new window.WaveformPlayer(container, playerOptions);
-    if (!this.isHero && !this.isGrid) {
-      container.classList.add("wp-player");
-    }
-    this.setActiveTrack(0);
-    this.updateActiveChapter(0);
   }
   /**
    * Update play/pause state on artwork
@@ -665,8 +827,9 @@ var WaveformPlaylist = class {
       return;
     }
     if (!this.options.showPlayState) return;
-    this.listElement.querySelectorAll(".wp-artwork-container").forEach((container, i) => {
-      const isActive = i === this.currentTrackIndex;
+    this.listElement.querySelectorAll(".wp-artwork-container").forEach((container) => {
+      const row = container.closest("[data-index]");
+      const isActive = !!row && Number(row.dataset.index) === this.currentTrackIndex;
       const overlay = container.querySelector(".wp-artwork-overlay");
       if (overlay) {
         overlay.style.display = isActive ? "flex" : "none";
@@ -686,10 +849,11 @@ var WaveformPlaylist = class {
     const track = this.tracks[this.currentTrackIndex];
     if (!track.chapters.length) return;
     let activeChapterIndex = -1;
-    for (let i = track.chapters.length - 1; i >= 0; i--) {
-      if (currentTime >= track.chapters[i].time) {
+    for (let i = 0; i < track.chapters.length; i++) {
+      const time = track.chapters[i].time;
+      if (time > currentTime) break;
+      if (activeChapterIndex === -1 || time !== track.chapters[activeChapterIndex].time) {
         activeChapterIndex = i;
-        break;
       }
     }
     if (activeChapterIndex === this.currentChapterIndex) return;
@@ -706,6 +870,24 @@ var WaveformPlaylist = class {
         });
       }
     }
+  }
+  /**
+   * Warn (once per track) about chapters that start beyond the track's end —
+   * a typo'd `data-time` that can never become active. Only checkable once
+   * the real duration is known, hence the time-update hook.
+   * @private
+   * @param {number} duration - Track duration in seconds.
+   */
+  checkChapterRange(duration) {
+    const index = this.currentTrackIndex;
+    const track = this.tracks[index];
+    if (!track || !(duration > 0) || !Number.isFinite(duration)) return;
+    this.rangeChecked = this.rangeChecked || /* @__PURE__ */ new Set();
+    if (this.rangeChecked.has(index)) return;
+    this.rangeChecked.add(index);
+    track.chapters.filter((ch) => ch.time > duration).forEach((ch) => {
+      console.warn(`[WaveformPlaylist] Chapter "${ch.label}" starts at ${this.formatTime(ch.time)}, after the end of "${track.title}" (${this.formatTime(duration)}).`);
+    });
   }
   /**
    * Toggle a chapter row's active styling and its `aria-current` state so the
@@ -746,16 +928,11 @@ var WaveformPlaylist = class {
       label.className = "wp-label";
       label.textContent = chapter.label;
       item.appendChild(label);
-      this.makeActivatable(item, () => {
-        this.player.seekTo(chapter.time);
-        if (!this.player.isPlaying) {
-          this.player.play();
-        }
-      });
+      this.makeActivatable(item, () => this.seekToChapter(0, chapter.time));
       list.appendChild(item);
     });
     listContainer.appendChild(list);
-    this.container.appendChild(listContainer);
+    this.appendOwn(listContainer);
     this.listElement = list;
   }
   /**
@@ -872,7 +1049,7 @@ var WaveformPlaylist = class {
       if (sub) list.appendChild(sub);
     });
     listContainer.appendChild(list);
-    this.container.appendChild(listContainer);
+    this.appendOwn(listContainer);
     this.listElement = list;
   }
   /**
@@ -891,7 +1068,7 @@ var WaveformPlaylist = class {
       btn.addEventListener("click", () => this.selectTrack(index));
       controls.appendChild(btn);
     });
-    this.container.appendChild(controls);
+    this.appendOwn(controls);
     this.listElement = controls;
   }
   /**
@@ -900,54 +1077,44 @@ var WaveformPlaylist = class {
    * @param {number} index - Track index to select
    */
   selectTrack(index) {
+    this.loadTrackAt(index, null);
+  }
+  /**
+   * Select and load a track, optionally running `onLoaded` once THAT track
+   * has loaded.
+   *
+   * The callback is registered before loadTrack() is called: the core can
+   * report a load synchronously (preload="none" with inline peaks skips
+   * every await), so registering afterwards could miss it.
+   *
+   * @private
+   * @param {number} index - Track index to select
+   * @param {Function|null} onLoaded - Run after the track's onLoad
+   */
+  loadTrackAt(index, onLoaded) {
     if (index < 0 || index >= this.tracks.length) return;
     const track = this.tracks[index];
     this.currentTrackIndex = index;
     this.currentChapterIndex = -1;
-    let markers = track.markers;
-    const shouldShowChapterMarkers = this.options.showChapterMarkers || this.options.showChapterMarkers === null && this.tracks.length === 1 && track.chapters.length > 0;
-    if (shouldShowChapterMarkers && track.chapters.length > 0 && markers.length === 0) {
-      markers = track.chapters.map((ch) => ({
-        time: ch.time,
-        label: ch.label,
-        color: ch.color || this.options.chapterMarkerColor
-      }));
+    this.cancelPending();
+    if (onLoaded) {
+      this.pending = { url: track.url, onLoad: onLoaded };
     }
     if (this.player) {
-      this.player.loadTrack(
-        track.url,
-        track.title,
-        track.artist,
-        {
-          markers,
-          artwork: track.artwork,
-          album: track.album,
-          onPlay: () => {
-            this.isPlaying = true;
-            this.setActiveTrack(this.currentTrackIndex);
-            this.updatePlayState();
-          },
-          onPause: () => {
-            this.isPlaying = false;
-            this.updatePlayState();
-            if (this.player && this.player.audio) {
-              const current = this.player.audio.currentTime;
-              const duration = this.player.audio.duration;
-              if (current >= duration - 0.1) {
-                this.currentChapterIndex = -1;
-                this.updateActiveChapter(0);
-              }
-            }
-          }
-        }
-      );
+      this.player.loadTrack(track.url, track.title, track.artist, this.trackPlayerOptions(track));
     }
     this.setActiveTrack(index);
-    if (this.options.expandChapters && this.tracks.length > 1) {
-      this.listElement.querySelectorAll(".wp-chapters").forEach((chapters, i) => {
-        chapters.style.display = i === index ? "block" : "none";
-      });
-    }
+    this.clearChapterHighlights();
+  }
+  /**
+   * Remove the active styling / `aria-current` from every chapter row.
+   * @private
+   */
+  clearChapterHighlights() {
+    if (!this.listElement) return;
+    this.listElement.querySelectorAll(".wp-chapter, .wp-chapter-item").forEach((item) => {
+      this.setChapterActive(item, false);
+    });
   }
   /**
    * Seek to a specific chapter within a track
@@ -956,67 +1123,72 @@ var WaveformPlaylist = class {
    * @param {number} time - Time in seconds to seek to
    */
   seekToChapter(trackIndex, time) {
+    if (!this.player) return;
     if (trackIndex === this.currentTrackIndex) {
-      this.player.seekTo(time);
-      if (!this.player.isPlaying) {
-        this.player.play();
-      }
+      this.cancelPending();
+      this.seekAndPlay(time);
       return;
     }
-    if (trackIndex < 0 || trackIndex >= this.tracks.length) return;
-    this.whenPlayerReady(() => {
-      this.player.seekTo(time);
-      if (!this.player.isPlaying) {
-        this.player.play();
-      }
-    });
-    this.selectTrack(trackIndex);
+    this.loadTrackAt(trackIndex, () => this.seekAndPlay(time));
   }
   /**
-   * Run a callback exactly once, when the core player has finished
-   * (re)loading its current track.
+   * Seek the current track to `time` and make sure it's playing.
    *
-   * Listens for whichever load signal the installed core version exposes so
-   * the seek is deterministic across versions:
-   *   - the `waveformplayer:ready` CustomEvent (detail: { player, url })
-   *     the core dispatches after init/load, and
-   *   - the `onLoad(player)` option the core invokes after a load.
-   * Whichever fires first wins and the other hook is torn down, so the
-   * callback never runs twice.
+   * The core's seekTo() is a no-op until the duration is known, which with
+   * `preload="none"` is not until playback starts. In that case playback is
+   * started — which fetches the metadata — and the seek runs on
+   * `loadedmetadata` (cancelled like any other pending action).
    *
    * @private
-   * @param {Function} callback - Invoked once the player's track is ready
+   * @param {number} time - Time in seconds
    */
-  whenPlayerReady(callback) {
-    if (!this.player) return;
-    let done = false;
-    const prevOnLoad = this.player.options ? this.player.options.onLoad : null;
-    const onReady = (e) => {
-      if (e.detail && e.detail.player && e.detail.player !== this.player) return;
-      finish();
-    };
-    const finish = () => {
-      if (done) return;
-      done = true;
-      document.removeEventListener("waveformplayer:ready", onReady, true);
-      if (this.player && this.player.container) {
-        this.player.container.removeEventListener("waveformplayer:ready", onReady, true);
-      }
-      if (this.player && this.player.options) {
-        this.player.options.onLoad = prevOnLoad;
-      }
-      callback();
-    };
-    document.addEventListener("waveformplayer:ready", onReady, true);
-    if (this.player.container) {
-      this.player.container.addEventListener("waveformplayer:ready", onReady, true);
-    }
-    if (this.player.options) {
-      this.player.options.onLoad = (player) => {
-        if (typeof prevOnLoad === "function") prevOnLoad(player);
-        finish();
+  seekAndPlay(time) {
+    const player = this.player;
+    if (!player) return;
+    const audio = player.audio;
+    if (audio && !(audio.duration > 0) && typeof audio.addEventListener === "function") {
+      const pending = {
+        cleanup: () => audio.removeEventListener("loadedmetadata", onMetadata)
       };
+      const onMetadata = () => {
+        if (this.pending !== pending) return;
+        this.cancelPending();
+        player.seekTo(time);
+      };
+      this.cancelPending();
+      this.pending = pending;
+      audio.addEventListener("loadedmetadata", onMetadata);
+      if (!player.isPlaying) player.play();
+      return;
     }
+    player.seekTo(time);
+    if (!player.isPlaying) {
+      player.play();
+    }
+  }
+  /**
+   * Resolve the pending post-load action, if the load that just finished is
+   * the one it was waiting for. Wired to the player's `onLoad`.
+   * @private
+   * @param {Object} [player] - The player that loaded.
+   */
+  resolvePending(player) {
+    const pending = this.pending;
+    if (!pending || !pending.onLoad) return;
+    const url = player && player.options ? player.options.url : void 0;
+    if (url !== void 0 && url !== pending.url) return;
+    this.pending = null;
+    pending.onLoad();
+  }
+  /**
+   * Drop the pending post-load action (there is only ever one). Called when
+   * another track is selected, when a load fails, and on destroy().
+   * @private
+   */
+  cancelPending() {
+    const pending = this.pending;
+    this.pending = null;
+    if (pending && pending.cleanup) pending.cleanup();
   }
   /**
    * Update active track UI state
@@ -1043,20 +1215,18 @@ var WaveformPlaylist = class {
     }
     if ((this.isHero || this.isGrid) && this.tracks[index]) {
       const t = this.tracks[index];
-      if (this.heroArt && t.artwork) {
-        this.heroArt.src = t.artwork;
-      }
+      this.setHeroArt(t.artwork);
       if (this.heroTitle) this.heroTitle.textContent = t.title || "";
       if (this.heroSub) this.heroSub.textContent = t.artist || "";
       if (this.heroTime && index !== this._heroTimeIndex) {
         this.heroTime.textContent = "0:00 / " + (t.duration || "0:00");
         this._heroTimeIndex = index;
       }
-      if (this.options.expandChapters && this.tracks.length > 1 && this.listElement) {
-        this.listElement.querySelectorAll(".wp-chapters").forEach((ch) => {
-          ch.style.display = Number(ch.dataset.trackIndex) === index ? "block" : "none";
-        });
-      }
+    }
+    if (this.options.expandChapters && this.tracks.length > 1 && this.listElement) {
+      this.listElement.querySelectorAll(".wp-chapters").forEach((ch) => {
+        ch.style.display = Number(ch.dataset.trackIndex) === index ? "block" : "none";
+      });
     }
   }
   /**
@@ -1098,6 +1268,9 @@ var WaveformPlaylist = class {
       const playlistHasFocus = this.container.contains(active);
       const playerHasFocus = !!this.player?.container.contains(active);
       if (!playlistHasFocus && !playerHasFocus) {
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) {
         return;
       }
       switch (e.key.toLowerCase()) {
@@ -1156,13 +1329,17 @@ var WaveformPlaylist = class {
    * is 0 — the start of the track — rather than a value that poisons every
    * calculation it touches.
    *
+   * Hour-long chapters need `H:MM:SS`, which used to read as just the hour
+   * (`"1:05:30"` → 1 second).
+   *
    * @private
-   * @param {string} timeStr - Time string in format "M:SS" or "MM:SS"
+   * @param {string} timeStr - Time string: "SS", "M:SS" or "H:MM:SS"
    * @returns {number} Time in seconds, or 0 when unparseable
    */
   parseTime(timeStr) {
-    const parts = String(timeStr ?? "").split(":").map(Number);
-    const seconds = parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0];
+    const parts = String(timeStr ?? "").trim().split(":");
+    if (parts.length > 3 || parts.length > 1 && parts.some((p) => p.trim() === "")) return 0;
+    const seconds = parts.reduce((acc, p) => acc * 60 + Number(p), 0);
     return Number.isFinite(seconds) && seconds >= 0 ? seconds : 0;
   }
   /**
@@ -1229,18 +1406,25 @@ var WaveformPlaylist = class {
       document.removeEventListener("keydown", this.keydownHandler);
       this.keydownHandler = null;
     }
+    this.cancelPending();
     if (this.player) {
       this.player.destroy();
     }
-    this.container.innerHTML = "";
-    this.container.classList.remove("waveform-playlist", "wp-minimal");
+    (this.ownNodes || []).forEach((node) => node.remove());
+    this.container.classList.remove(...this.ownClasses || []);
+    delete this.container.dataset.waveformPlaylistInitialized;
     this.tracks.forEach((track) => {
       if (track.element) {
-        track.element.style.display = "";
+        track.element.style.display = this.trackDisplay && this.trackDisplay.get(track.element) || "";
       }
     });
     this.player = null;
     this.listElement = null;
+    this.ownNodes = [];
+    this.ownClasses = [];
+    this.trackDisplay = null;
+    this.heroCover = this.heroArt = this.heroIcon = null;
+    this.heroTitle = this.heroSub = this.heroTime = null;
     this.tracks = [];
   }
 };
